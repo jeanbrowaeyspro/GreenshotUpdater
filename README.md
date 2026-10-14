@@ -14,12 +14,18 @@ administrateur pour l'installer.
 2. Si le runtime .NET Desktop 10 (x64) manque, le lanceur propose de le télécharger
    depuis Microsoft (`https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe`)
    et de l'installer ; l'installeur demande lui-même l'élévation (UAC).
-3. La fenêtre de réglages s'ouvre : choisir les options puis cliquer sur "Installer".
+3. La fenêtre d'installation s'ouvre : elle ne montre que les options et le bouton
+   "Installer" (ni versions de Greenshot, ni vérification, ni désinstallation).
+4. "Installer" copie le lanceur, seul fichier du dossier, dans
+   `%LOCALAPPDATA%\Programs\GreenshotUpdater`, applique les options et affiche
+   "Installation terminée.". Après OK, la fenêtre se ferme et le lanceur installé est
+   démarré avec `/demarrage` (instance unique libérée avant) : première vérification,
+   silencieuse s'il n'y a rien à proposer (voir plus bas).
 
-L'installation copie le lanceur, seul fichier du dossier, dans
-`%LOCALAPPDATA%\Programs\GreenshotUpdater`, puis applique les options. Lancé depuis ce
-dossier, le bouton devient "Appliquer". Relancer un `GreenshotUpdater.exe` plus récent
-puis "Installer" met à jour la copie installée.
+Lancé depuis le dossier d'installation (menu Démarrer, Bureau), la fenêtre de réglages
+complète s'ouvre : bouton "Appliquer", versions, "Vérifier maintenant", "Désinstaller".
+Relancer un `GreenshotUpdater.exe` plus récent puis "Installer" met à jour la copie
+installée.
 
 ## Options
 
@@ -34,7 +40,7 @@ Les raccourcis pointent sur le lanceur installé, sans argument (ils ouvrent la 
 de réglages), avec l'icône de l'application. Les options sont mémorisées dans
 `%APPDATA%\GreenshotUpdater\settings.json`.
 
-La fenêtre affiche aussi la version installée de Greenshot et la dernière version
+Une fois installé, la fenêtre affiche aussi la version installée de Greenshot et la dernière version
 stable ; "Vérifier maintenant" propose la mise à jour si elle existe.
 
 ### Greenshot.ini pendant que Greenshot tourne

@@ -71,8 +71,13 @@ Aucune fenêtre au départ :
      est lancé (UAC puis assistant de Greenshot). Si winget est introuvable,
      GreenshotUpdater propose de télécharger l'installeur
      `Greenshot-INSTALLER-*-RELEASE.exe` de la release GitHub et de le lancer.
-     Dès le lancement, la fenêtre disparaît : GreenshotUpdater attend la fin de
-     l'installation sans rien afficher, relance Greenshot s'il ne tourne pas déjà
+     Dès le lancement, la fenêtre devient une fenêtre d'attente ("Préparation de la
+     mise à jour de Greenshot x…", barre de progression, sans bouton ni premier plan
+     forcé pour ne masquer ni l'UAC ni l'assistant) : téléchargement par winget et UAC
+     peuvent prendre un moment. Elle disparaît dès que l'assistant de Greenshot est
+     visible (voir plus bas), ou si winget / l'installeur se termine avant (échec,
+     annulation, UAC refusée), ou au bout de 5 minutes. GreenshotUpdater attend ensuite
+     la fin de l'installation sans rien afficher, relance Greenshot s'il ne tourne pas déjà
      (l'assistant de Greenshot peut l'avoir relancé lui-même), note le résultat dans
      le journal et se termine. Aucun message en cas de succès ni d'annulation (assistant
      ou UAC annulés : codes `0x8A15010C`, `1223`, `0x800704C7`, `2` et `5`) ; un
@@ -81,6 +86,25 @@ Aucune fenêtre au départ :
 
 "Vérifier maintenant" (fenêtre de réglages) ouvre la même fenêtre ; "Installer" y masque
 aussi la fenêtre de réglages, qui est fermée à la fin de l'installation.
+
+### Détection de l'assistant de Greenshot
+
+L'installeur de Greenshot est un Inno Setup : l'exécutable lance un processus
+`is-XXXXX.tmp\<installeur>.tmp` qui porte les fenêtres, des fiches Delphi VCL dont la
+classe de fenêtre Windows est le nom de la classe Delphi. Toutes les 400 ms,
+GreenshotUpdater parcourt les fenêtres de premier niveau visibles (`EnumWindows`) et
+s'arrête à la première nouvelle fenêtre :
+
+- de classe `TWizardForm` (assistant) ou `TSelectLanguageForm` (choix de la langue,
+  affiché avant l'assistant : `ShowLanguageDialog` vaut `yes` par défaut et le script
+  de Greenshot ne le change pas) ;
+- ou, en repli, dont le titre contient "Greenshot", d'un processus autre que
+  `Greenshot.exe` et GreenshotUpdater.
+
+Les fenêtres qui répondent déjà à ces critères au début de l'attente (page web ou
+dossier "Greenshot" ouverts…) sont ignorées. Noms de classe relevés dans le code source
+d'Inno Setup (unités `Setup.WizardForm`, `Setup.SelectLanguageForm`, `Setup.SetupForm`,
+qui ne changent pas la classe de fenêtre), pas sur un installeur réel.
 
 Une seule instance tourne à la fois : l'instance unique reste prise pendant l'attente
 invisible de l'installation (un lancement depuis le menu Démarrer à ce moment se ferme
@@ -119,7 +143,7 @@ fichier copier à l'installation.
 
 L'interface suit le thème clair ou sombre de Windows (thème Fluent), y compris quand il
 change pendant l'exécution. Tous les messages de l'application (questions, informations,
-erreurs, proposition de mise à jour) passent par une seule fenêtre de dialogue WPF
+erreurs, proposition de mise à jour, attente de l'assistant) passent par une seule fenêtre de dialogue WPF
 (`DialogWindow`, modèle de vue `DialogViewModel`) qui suit ce thème, centrée sur la
 fenêtre active ou à l'écran ; seuls les messages du lanceur (runtime .NET manquant,
 téléchargement) restent des boîtes Windows classiques, affichées avant que .NET 10 soit
@@ -160,6 +184,7 @@ src\GreenshotUpdater.Core\        logique sans interface et modèles de vue
     Processes, Winget              Greenshot, winget, programmes externes
     Shortcuts, Setup               raccourcis, installation, désinstallation
     UpdateService                  vérification et mise à jour
+    InstallerWindow                attente de l'assistant de Greenshot (fenêtres du bureau, abstraction)
     ViewModels\                    fenêtre de réglages, boîtes de dialogue, proposition de mise à jour
 src\GreenshotUpdater\             application WPF (GreenshotUpdater.App.exe) : SettingsWindow, DialogWindow
 src\GreenshotUpdater.Launcher\    lanceur net48 (GreenshotUpdater.exe)

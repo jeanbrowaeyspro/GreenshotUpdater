@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests hors écran : aucune fenêtre ne s'ouvre, rien n'est écrit hors des
+       dossiers temporaires (ni registre, ni Greenshot.ini, ni Bureau). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>GreenshotUpdater.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GreenshotUpdater.Core\GreenshotUpdater.Core.csproj" />
+    <ProjectReference Include="..\..\src\GreenshotUpdater\GreenshotUpdater.csproj" />
+  </ItemGroup>
+
+  <!-- Logique du lanceur (projet .NET Framework), compilée ici pour être testée. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\GreenshotUpdater.Launcher\RuntimeCheck.cs" Link="Launcher\RuntimeCheck.cs" />
+    <Compile Include="..\..\src\GreenshotUpdater.Launcher\CommandLine.cs" Link="Launcher\CommandLine.cs" />
+    <Compile Include="..\..\src\GreenshotUpdater.Launcher\EmbeddedApp.cs" Link="Launcher\EmbeddedApp.cs" />
+    <Compile Include="..\..\src\Shared\Switches.cs" Link="Launcher\Switches.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Lanceur GreenshotUpdater.exe, seul fichier livré. En .NET Framework 4.8 (présent
+       sur tout Windows 10 et 11) : il vérifie le runtime .NET Desktop 10 (et propose de
+       l'installer), extrait l'application GreenshotUpdater.App.exe qu'il embarque, puis
+       la démarre. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>GreenshotUpdater</AssemblyName>
+    <RootNamespace>GreenshotUpdater.Launcher</RootNamespace>
+    <AssemblyTitle>GreenshotUpdater</AssemblyTitle>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <Compile Include="..\Shared\Switches.cs" Link="Switches.cs" />
+  </ItemGroup>
+
+  <!-- Application publiée, passée par build.cmd (-p:AppExe=...). Sans elle, le lanceur
+       démarre l'application déjà présente à côté de lui. -->
+  <ItemGroup Condition="'$(AppExe)' != ''">
+    <EmbeddedResource Include="$(AppExe)" LogicalName="GreenshotUpdater.App.exe" />
+  </ItemGroup>
+
+</Project>

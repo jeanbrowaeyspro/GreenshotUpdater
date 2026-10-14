@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Logique sans interface : versions, GitHub, registre, Greenshot.ini, winget,
+       installation, réglages, modèles de vue (sans référence à WPF). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>GreenshotUpdater</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Shared\Switches.cs" Link="Switches.cs" />
+  </ItemGroup>
+
+</Project>

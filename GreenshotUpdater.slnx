@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GreenshotUpdater.Core/GreenshotUpdater.Core.csproj" />
+    <Project Path="src/GreenshotUpdater.Launcher/GreenshotUpdater.Launcher.csproj" />
+    <Project Path="src/GreenshotUpdater/GreenshotUpdater.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GreenshotUpdater.Tests/GreenshotUpdater.Tests.csproj" />
+  </Folder>
+</Solution>

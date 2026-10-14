@@ -5,7 +5,7 @@ l'ouverture de session, il compare la version installée à la dernière version
 publiée sur GitHub et, si une version plus récente existe, propose de l'installer par
 winget. Il remplace la vérification intégrée de Greenshot, qui peut être désactivée.
 
-Livrable : un seul fichier, `GreenshotUpdater.exe` (environ 410 Ko), sans droits
+Livrable : un seul fichier, `GreenshotUpdater.exe` (environ 420 Ko), sans droits
 administrateur pour l'installer.
 
 ## Installation

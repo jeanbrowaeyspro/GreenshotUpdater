@@ -146,7 +146,8 @@ public sealed class SettingsViewModel : ObservableObject
     {
         if (!_dialogs.Confirm("Désinstaller GreenshotUpdater ?\n\n"
                               + "Le démarrage avec Windows et les raccourcis seront retirés, la vérification "
-                              + "intégrée de Greenshot sera rétablie et le dossier d'installation supprimé."))
+                              + "intégrée de Greenshot sera rétablie et le dossier d'installation supprimé.",
+                              "Désinstaller", "Annuler"))
             return;
         Run(() =>
         {

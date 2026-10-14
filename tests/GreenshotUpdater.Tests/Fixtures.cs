@@ -225,7 +225,7 @@ public sealed class FakeDialogs(bool answer = true) : IDialogs
 {
     public List<string> Shown { get; } = [];
 
-    public bool Confirm(string text)
+    public bool Confirm(string text, string yes = "Oui", string no = "Non")
     {
         Shown.Add(text);
         return answer;

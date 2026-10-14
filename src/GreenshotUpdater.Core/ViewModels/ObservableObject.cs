@@ -35,16 +35,6 @@ public sealed class RelayCommand(Action execute, Func<bool>? canExecute = null) 
     public void Refresh() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
-/// <summary>Messages à l'utilisateur, remplacés par un faux dans les tests (un MessageBox bloquerait).</summary>
-public interface IDialogs
-{
-    bool Confirm(string text);
-
-    void Info(string text);
-
-    void Error(string text);
-}
-
 /// <summary>Nom et version de l'application.</summary>
 public static class AppInfo
 {

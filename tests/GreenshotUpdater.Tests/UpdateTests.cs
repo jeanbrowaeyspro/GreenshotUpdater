@@ -90,7 +90,7 @@ public class UpdateTests
         var dialogs = new FakeDialogs();
         var vm = new UpdatePromptViewModel(check, service, dialogs);
         var events = new List<string>();
-        vm.InstallStarted += () => events.Add($"masquée, occupée {vm.IsBusy}, lancements {runner.Runs.Count}");
+        vm.RequestHide += () => events.Add($"masquée, occupée {vm.IsBusy}, lancements {runner.Runs.Count}");
         vm.RequestClose += () => events.Add($"fermée, occupée {vm.IsBusy}");
         Assert.True(vm.InstallCommand.CanExecute(null));
 
@@ -190,6 +190,8 @@ public class UpdateTests
         var runner = new FakeRunner();
         var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner);
         var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, new FakeDialogs());
+        Assert.Equal(["Installer", "Plus tard"], vm.Buttons.Select(b => b.Text));
+        Assert.Same(vm.CloseCommand, vm.Buttons[1].Command);
         var closed = false;
         vm.RequestClose += () => closed = true;
         vm.CloseCommand.Execute(null);

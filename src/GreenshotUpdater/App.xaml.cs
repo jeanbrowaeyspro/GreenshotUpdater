@@ -13,6 +13,7 @@ namespace GreenshotUpdater;
 public partial class App : Application
 {
     private Mutex? _singleInstance;
+    private IDialogs? _dialogs;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -30,10 +31,12 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // Boîtes centrées sur la fenêtre active (proposition de mise à jour au-dessus des réglages…).
+        _dialogs = new WpfDialogs(() => Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) ?? MainWindow);
         DispatcherUnhandledException += OnUnhandledException;
         ThemeManager.Apply(this);
 
-        var services = new AppServices(paths, new WpfDialogs(() => MainWindow));
+        var services = new AppServices(paths, _dialogs);
         if (args.Startup)
             await StartupCheckAsync(services);
         else
@@ -62,13 +65,13 @@ public partial class App : Application
     /// rien afficher (l'instance unique reste prise), puis la fenêtre propriétaire est
     /// fermée, ce qui termine l'application.
     /// </summary>
-    private static UpdatePromptWindow CreateUpdatePrompt(UpdateCheck check, AppServices services, Window? owner)
+    private static DialogWindow CreateUpdatePrompt(UpdateCheck check, AppServices services, Window? owner)
     {
         var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs);
-        var window = new UpdatePromptWindow(viewModel) { Owner = owner };
+        var window = DialogWindow.Create(viewModel, owner);
         if (owner is not null)
         {
-            viewModel.InstallStarted += owner.Hide;
+            viewModel.RequestHide += owner.Hide;
             window.Closed += (_, _) =>
             {
                 if (viewModel.Outcome is not null)
@@ -117,8 +120,7 @@ public partial class App : Application
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         Log.Error(e.Exception.ToString());
-        MessageBox.Show($"Erreur inattendue :\n\n{e.Exception.Message}", AppInfo.Title,
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+        _dialogs?.Error($"Erreur inattendue :\n\n{e.Exception.Message}");
         e.Handled = true;
     }
 }

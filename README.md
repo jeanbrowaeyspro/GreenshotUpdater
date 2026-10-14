@@ -118,7 +118,12 @@ programmes lancés ensuite (winget, Greenshot). L'application s'en sert pour sav
 fichier copier à l'installation.
 
 L'interface suit le thème clair ou sombre de Windows (thème Fluent), y compris quand il
-change pendant l'exécution. La version (`<Version>` de `Directory.Build.props`) est
+change pendant l'exécution. Tous les messages de l'application (questions, informations,
+erreurs, proposition de mise à jour) passent par une seule fenêtre de dialogue WPF
+(`DialogWindow`, modèle de vue `DialogViewModel`) qui suit ce thème, centrée sur la
+fenêtre active ou à l'écran ; seuls les messages du lanceur (runtime .NET manquant,
+téléchargement) restent des boîtes Windows classiques, affichées avant que .NET 10 soit
+disponible. La version (`<Version>` de `Directory.Build.props`) est
 affichée dans le titre des fenêtres.
 
 ## Construction
@@ -155,8 +160,8 @@ src\GreenshotUpdater.Core\        logique sans interface et modèles de vue
     Processes, Winget              Greenshot, winget, programmes externes
     Shortcuts, Setup               raccourcis, installation, désinstallation
     UpdateService                  vérification et mise à jour
-    ViewModels\                    fenêtre de réglages, proposition de mise à jour
-src\GreenshotUpdater\             application WPF (GreenshotUpdater.App.exe)
+    ViewModels\                    fenêtre de réglages, boîtes de dialogue, proposition de mise à jour
+src\GreenshotUpdater\             application WPF (GreenshotUpdater.App.exe) : SettingsWindow, DialogWindow
 src\GreenshotUpdater.Launcher\    lanceur net48 (GreenshotUpdater.exe)
 tests\GreenshotUpdater.Tests\     tests xUnit
 ```

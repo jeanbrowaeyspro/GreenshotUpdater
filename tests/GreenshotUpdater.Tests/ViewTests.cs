@@ -119,6 +119,51 @@ public class ViewTests
         var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
         var service = Updates(registry);
         var check = await service.CheckAsync([]);
-        AssertThemes(() => new UpdatePromptWindow(new UpdatePromptViewModel(check, service, new FakeDialogs())), "proposition");
+        AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs())), "proposition");
+    }
+
+    [Theory]
+    [InlineData(DialogKind.Question, "Désinstaller GreenshotUpdater ?\n\nLe démarrage avec Windows et les raccourcis seront retirés.", "Désinstaller", "Annuler")]
+    [InlineData(DialogKind.Info, "Installation terminée.", "OK")]
+    [InlineData(DialogKind.Error, "La mise à jour a échoué (code 0x8A150011).", "OK")]
+    public void DialogRendersInBothThemes(DialogKind kind, string message, params string[] buttons)
+    {
+        AssertThemes(() => new DialogWindow(new DialogViewModel(kind, message, buttons)), $"dialogue_{kind}");
+        RunSta(() =>
+        {
+            var window = new DialogWindow(new DialogViewModel(kind, message, buttons));
+            var shown = FindAll<Button>((DependencyObject)window.Content).ToList();
+            Assert.Equal(buttons, shown.Select(b => (string)b.Content));
+            Assert.True(shown[0].IsDefault);
+            Assert.True(shown[^1].IsCancel);
+            Assert.Equal(DialogWindow.Glyph(kind), FindAll<TextBlock>((DependencyObject)window.Content).First().Text);
+        });
+    }
+
+    /// <summary>Éléments d'un type donné dans l'arbre logique.</summary>
+    private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is T match)
+                yield return match;
+            foreach (var nested in FindAll<T>(child))
+                yield return nested;
+        }
+    }
+
+    [Fact]
+    public void DialogChoiceIsTheButtonRank()
+    {
+        var dialog = new DialogViewModel(DialogKind.Question, "Supprimer ?", "Oui", "Non");
+        var closed = 0;
+        dialog.RequestClose += () => closed++;
+        Assert.Null(dialog.Choice);
+        Assert.Equal([true, false], dialog.Buttons.Select(b => b.IsDefault));
+        Assert.Equal([false, true], dialog.Buttons.Select(b => b.IsCancel));
+        dialog.Buttons[1].Command.Execute(null);
+        Assert.Equal(1, dialog.Choice);
+        Assert.Equal(1, closed);
+        Assert.True(dialog.CanClose);
     }
 }

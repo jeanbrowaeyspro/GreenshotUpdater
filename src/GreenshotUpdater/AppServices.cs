@@ -29,17 +29,23 @@ public sealed class AppServices
     public UpdateService Updates { get; }
 }
 
-/// <summary>Messages affichés par MessageBox, au-dessus de la fenêtre principale.</summary>
+/// <summary>
+/// Messages affichés dans une <see cref="DialogWindow"/> modale, centrée sur la fenêtre
+/// principale si elle est visible, sinon à l'écran.
+/// </summary>
 public sealed class WpfDialogs(Func<Window?> owner) : IDialogs
 {
-    private MessageBoxResult Show(string text, MessageBoxButton buttons, MessageBoxImage image) =>
-        owner() is { IsVisible: true } window
-            ? MessageBox.Show(window, text, AppInfo.Title, buttons, image)
-            : MessageBox.Show(text, AppInfo.Title, buttons, image);
+    /// <summary>Affiche la boîte et renvoie le rang du bouton choisi (null : fermée autrement).</summary>
+    private int? Show(DialogKind kind, string text, params string[] buttons)
+    {
+        var viewModel = new DialogViewModel(kind, text, buttons);
+        DialogWindow.Create(viewModel, owner()).ShowDialog();
+        return viewModel.Choice;
+    }
 
-    public bool Confirm(string text) => Show(text, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+    public bool Confirm(string text, string yes = "Oui", string no = "Non") => Show(DialogKind.Question, text, yes, no) == 0;
 
-    public void Info(string text) => Show(text, MessageBoxButton.OK, MessageBoxImage.Information);
+    public void Info(string text) => Show(DialogKind.Info, text, "OK");
 
-    public void Error(string text) => Show(text, MessageBoxButton.OK, MessageBoxImage.Error);
+    public void Error(string text) => Show(DialogKind.Error, text, "OK");
 }

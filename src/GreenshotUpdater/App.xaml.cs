@@ -60,18 +60,24 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Fenêtre de mise à jour. Dès que l'installation est lancée, elle est masquée avec sa
-    /// fenêtre propriétaire (réglages) : le processus attend la fin de l'installation sans
-    /// rien afficher (l'instance unique reste prise), puis la fenêtre propriétaire est
-    /// fermée, ce qui termine l'application.
+    /// Fenêtre de mise à jour. Dès que l'installation est lancée, sa fenêtre propriétaire
+    /// (réglages) est masquée et elle devient une fenêtre d'attente, masquée à son tour à
+    /// l'apparition de l'assistant de Greenshot : le processus attend la fin de
+    /// l'installation sans rien afficher (l'instance unique reste prise), puis la fenêtre
+    /// propriétaire est fermée, ce qui termine l'application.
     /// </summary>
     private static DialogWindow CreateUpdatePrompt(UpdateCheck check, AppServices services, Window? owner)
     {
-        var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs);
+        var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs, services.InstallerWait);
         var window = DialogWindow.Create(viewModel, owner);
         if (owner is not null)
         {
-            viewModel.RequestHide += owner.Hide;
+            // Masquer la propriétaire ne masque pas la fenêtre d'attente (fenêtre possédée).
+            viewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(DialogViewModel.IsWaiting) && viewModel.IsWaiting)
+                    owner.Hide();
+            };
             window.Closed += (_, _) =>
             {
                 if (viewModel.Outcome is not null)

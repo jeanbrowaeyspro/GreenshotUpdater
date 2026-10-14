@@ -34,6 +34,10 @@ public sealed record DialogButton(string Text, RelayCommand Command, bool IsDefa
 /// </summary>
 public class DialogViewModel : ObservableObject
 {
+    private DialogKind _kind;
+    private string _message;
+    private bool _isWaiting;
+
     /// <summary>Boîte simple : chaque bouton note son rang dans <see cref="Choice"/> et ferme.</summary>
     /// <param name="buttons">Textes des boutons : le premier est le bouton principal, le dernier répond à Échap.</param>
     public DialogViewModel(DialogKind kind, string message, params string[] buttons)
@@ -49,8 +53,8 @@ public class DialogViewModel : ObservableObject
     /// <summary>Pour une classe dérivée, qui fournit ses propres <see cref="Buttons"/>.</summary>
     protected DialogViewModel(DialogKind kind, string message)
     {
-        Kind = kind;
-        Message = message;
+        _kind = kind;
+        _message = message;
     }
 
     /// <summary>Demande de masquer la fenêtre sans la fermer.</summary>
@@ -60,9 +64,36 @@ public class DialogViewModel : ObservableObject
 
     public string Title => AppInfo.Title;
 
-    public DialogKind Kind { get; }
+    public DialogKind Kind
+    {
+        get => _kind;
+        private set => Set(ref _kind, value);
+    }
 
-    public string Message { get; }
+    public string Message
+    {
+        get => _message;
+        private set => Set(ref _message, value);
+    }
+
+    /// <summary>
+    /// Attente d'une opération : barre de progression indéterminée à la place des
+    /// boutons, fenêtre jamais au premier plan forcé (elle ne doit masquer ni l'UAC ni
+    /// les fenêtres d'un autre programme).
+    /// </summary>
+    public bool IsWaiting
+    {
+        get => _isWaiting;
+        private set => Set(ref _isWaiting, value);
+    }
+
+    /// <summary>Transforme la boîte en fenêtre d'attente, avec le message donné.</summary>
+    public void ShowWaiting(string message)
+    {
+        Kind = DialogKind.Info;
+        Message = message;
+        IsWaiting = true;
+    }
 
     public IReadOnlyList<DialogButton> Buttons { get; protected init; } = [];
 

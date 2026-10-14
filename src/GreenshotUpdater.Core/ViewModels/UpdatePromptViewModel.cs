@@ -2,8 +2,10 @@ namespace GreenshotUpdater.ViewModels;
 
 /// <summary>
 /// Boîte "Greenshot x est disponible" : Installer / Plus tard. Dès que l'installation
-/// est lancée, la fenêtre disparaît (<see cref="DialogViewModel.RequestHide"/>) ; elle
-/// se ferme à la fin, sans message de succès (erreur seulement en cas d'échec).
+/// est lancée, la boîte devient une fenêtre d'attente ("Préparation de la mise à jour…")
+/// jusqu'à l'apparition de l'assistant de Greenshot (<see cref="InstallerWindowWait"/>),
+/// puis disparaît (<see cref="DialogViewModel.RequestHide"/>) ; elle se ferme à la fin,
+/// sans message de succès (erreur seulement en cas d'échec).
 /// "Plus tard" ne mémorise rien : la question revient au prochain démarrage.
 /// </summary>
 public sealed class UpdatePromptViewModel : DialogViewModel
@@ -11,14 +13,16 @@ public sealed class UpdatePromptViewModel : DialogViewModel
     private readonly UpdateCheck _check;
     private readonly UpdateService _updates;
     private readonly IDialogs _dialogs;
+    private readonly InstallerWindowWait _installerWait;
     private bool _isBusy;
 
-    public UpdatePromptViewModel(UpdateCheck check, UpdateService updates, IDialogs dialogs)
+    public UpdatePromptViewModel(UpdateCheck check, UpdateService updates, IDialogs dialogs, InstallerWindowWait installerWait)
         : base(DialogKind.Question, check.OfferText)
     {
         _check = check;
         _updates = updates;
         _dialogs = dialogs;
+        _installerWait = installerWait;
         InstallCommand = new RelayCommand(() => _ = InstallAsync(), () => !IsBusy);
         CloseCommand = new RelayCommand(Close, () => !IsBusy);
         Buttons = [new("Installer", InstallCommand, true, false), new("Plus tard", CloseCommand, false, true)];
@@ -46,6 +50,10 @@ public sealed class UpdatePromptViewModel : DialogViewModel
 
     public RelayCommand CloseCommand { get; }
 
+    /// <summary>Message de la fenêtre d'attente.</summary>
+    public string WaitingText => $"Préparation de la mise à jour de Greenshot {VersionText.Display(_check.Latest!.Version)}…\n\n"
+                                + "L'assistant d'installation de Greenshot s'ouvrira dans un moment.";
+
     public async Task InstallAsync()
     {
         var useWinget = _updates.WingetAvailable;
@@ -56,10 +64,15 @@ public sealed class UpdatePromptViewModel : DialogViewModel
             return;
 
         IsBusy = true;
+        ShowWaiting(WaitingText);
+        // Hors du fil de l'interface : la fermeture de Greenshot (jusqu'à quelques
+        // secondes) ne fige pas la fenêtre d'attente.
+        var install = Task.Run(() => useWinget
+                                   ? _updates.InstallWithWingetAsync()
+                                   : _updates.InstallFromGitHubAsync(_check.Latest!));
+        await _installerWait.WaitAsync(install);
         Hide();
-        Outcome = useWinget
-            ? await _updates.InstallWithWingetAsync()
-            : await _updates.InstallFromGitHubAsync(_check.Latest!);
+        Outcome = await install;
         IsBusy = false;
         if (Outcome.ShowsError)
             _dialogs.Error(Outcome.Message);

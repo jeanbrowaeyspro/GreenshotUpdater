@@ -119,7 +119,7 @@ public class ViewTests
         var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
         var service = Updates(registry);
         var check = await service.CheckAsync([]);
-        AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs())), "proposition");
+        AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait())), "proposition");
     }
 
     [Theory]

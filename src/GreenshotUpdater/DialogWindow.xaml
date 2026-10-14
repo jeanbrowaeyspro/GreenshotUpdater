@@ -11,6 +11,8 @@
                        FontSize="28" Margin="0,0,16,0" VerticalAlignment="Top" />
             <TextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" VerticalAlignment="Center" />
         </DockPanel>
+        <!-- Attente (IsWaiting) : barre indéterminée à la place des boutons. -->
+        <ProgressBar x:Name="Progress" IsIndeterminate="True" Margin="0,20,0,4" Visibility="Collapsed" />
         <!-- Boutons créés par le code : un par DialogButton du modèle de vue. -->
         <StackPanel x:Name="ButtonsPanel" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0" />
     </StackPanel>

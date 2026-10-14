@@ -7,7 +7,7 @@ namespace GreenshotUpdater;
 
 /// <summary>
 /// Seule fenêtre de message de l'application (questions, informations, erreurs,
-/// proposition de mise à jour) : thème Fluent de l'application, clair ou sombre, comme
+/// proposition de mise à jour, attente de l'assistant de Greenshot) : thème Fluent de l'application, clair ou sombre, comme
 /// la fenêtre de réglages, y compris quand le thème de Windows change.
 /// </summary>
 public partial class DialogWindow : Window
@@ -18,9 +18,6 @@ public partial class DialogWindow : Window
     {
         InitializeComponent();
         DataContext = _viewModel = viewModel;
-        Symbol.Text = Glyph(viewModel.Kind);
-        Symbol.SetResourceReference(TextBlock.ForegroundProperty,
-                                    viewModel.Kind == DialogKind.Error ? "SystemFillColorCriticalBrush" : "AccentTextFillColorPrimaryBrush");
         foreach (var model in viewModel.Buttons)
         {
             var button = new Button
@@ -36,8 +33,30 @@ public partial class DialogWindow : Window
                 button.SetResourceReference(StyleProperty, "AccentButtonStyle");
             ButtonsPanel.Children.Add(button);
         }
+        ShowState();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(DialogViewModel.Kind) or nameof(DialogViewModel.IsWaiting))
+                ShowState();
+        };
         viewModel.RequestHide += Hide;
         viewModel.RequestClose += Close;
+    }
+
+    /// <summary>
+    /// Symbole de la nature du message ; en attente, barre de progression à la place des
+    /// boutons et plus de premier plan forcé (ni l'UAC ni l'assistant ne doivent être
+    /// masqués).
+    /// </summary>
+    private void ShowState()
+    {
+        Symbol.Text = Glyph(_viewModel.Kind);
+        Symbol.SetResourceReference(TextBlock.ForegroundProperty,
+                                    _viewModel.Kind == DialogKind.Error ? "SystemFillColorCriticalBrush" : "AccentTextFillColorPrimaryBrush");
+        Progress.Visibility = _viewModel.IsWaiting ? Visibility.Visible : Visibility.Collapsed;
+        ButtonsPanel.Visibility = _viewModel.IsWaiting ? Visibility.Collapsed : Visibility.Visible;
+        if (_viewModel.IsWaiting)
+            Topmost = false;
     }
 
     /// <summary>

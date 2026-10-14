@@ -188,11 +188,16 @@ public sealed class FakeRunner(int exitCode = 0) : IProcessRunner
     /// <summary>Action exécutée pendant le "programme" (mise à jour du registre…).</summary>
     public Action? During { get; init; }
 
-    public Task<int> RunAsync(ProcessStartInfo start, CancellationToken cancel = default)
+    /// <summary>Fin du "programme" : immédiate si null, sinon quand la tâche se termine.</summary>
+    public Task? Until { get; init; }
+
+    public async Task<int> RunAsync(ProcessStartInfo start, CancellationToken cancel = default)
     {
         Runs.Add(start);
         During?.Invoke();
-        return Task.FromResult(exitCode);
+        if (Until is not null)
+            await Until;
+        return exitCode;
     }
 
     public void Start(ProcessStartInfo start) => Runs.Add(start);
@@ -234,4 +239,23 @@ public sealed class FakeDialogs(bool answer = true) : IDialogs
     public void Info(string text) => Shown.Add(text);
 
     public void Error(string text) => Shown.Add(text);
+}
+
+/// <summary>
+/// Fenêtres du bureau simulées : chaque examen renvoie la liste suivante (la dernière
+/// ensuite) ; aucune fenêtre par défaut.
+/// </summary>
+public sealed class FakeWindows(params IReadOnlyList<TopWindow>[] snapshots) : IWindowWatcher
+{
+    public int Calls { get; private set; }
+
+    public IReadOnlyList<TopWindow> VisibleWindows() =>
+        snapshots.Length == 0 ? [] : snapshots[Math.Min(Calls++, snapshots.Length - 1)];
+
+    /// <summary>Assistant Inno Setup de Greenshot.</summary>
+    public static readonly TopWindow Wizard = new(101, "TWizardForm", "Installation - Greenshot", 4242, "");
+
+    /// <summary>Attente rapide (examen toutes les millisecondes) sur ces fenêtres.</summary>
+    public InstallerWindowWait Wait(TimeSpan? timeout = null) =>
+        new(this) { Interval = TimeSpan.FromMilliseconds(1), Timeout = timeout ?? TimeSpan.FromSeconds(30) };
 }

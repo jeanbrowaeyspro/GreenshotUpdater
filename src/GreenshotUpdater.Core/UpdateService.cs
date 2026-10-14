@@ -14,8 +14,14 @@ public sealed record UpdateCheck(InstalledGreenshot? Installed, ReleaseInfo? Lat
         : "";
 }
 
-/// <summary>Issue d'une mise à jour, affichée telle quelle.</summary>
-public sealed record UpdateOutcome(bool Success, string Message);
+/// <summary>Issue d'une mise à jour.</summary>
+/// <param name="Cancelled">Assistant ou élévation (UAC) annulés par l'utilisateur : rien à afficher.</param>
+/// <param name="Message">Texte d'erreur, affiché seulement en cas d'échec hors annulation.</param>
+public sealed record UpdateOutcome(bool Success, bool Cancelled, string Message)
+{
+    /// <summary>Échec à signaler : ni succès, ni annulation volontaire.</summary>
+    public bool ShowsError => !Success && !Cancelled;
+}
 
 /// <summary>Vérification et installation des mises à jour de Greenshot.</summary>
 public sealed class UpdateService(
@@ -84,9 +90,21 @@ public sealed class UpdateService(
             return await runner.RunAsync(new ProcessStartInfo(installer) { UseShellExecute = true }, cancel);
         });
 
+    /// <summary>Code Windows ERROR_CANCELLED : élévation (UAC) refusée.</summary>
+    public const int ErrorCancelled = 1223;
+
+    /// <summary>
+    /// Codes de sortie d'une annulation par l'utilisateur : winget
+    /// (APPINSTALLER_CLI_ERROR_INSTALL_CANCELLED_BY_USER), ERROR_CANCELLED seul ou en
+    /// HRESULT, installeur Inno Setup de Greenshot (2 : annulé avant l'installation,
+    /// 5 : annulé pendant).
+    /// </summary>
+    public static readonly int[] CancelCodes = [unchecked((int)0x8A15010C), ErrorCancelled, unchecked((int)0x800704C7), 2, 5];
+
     /// <summary>
     /// Ferme Greenshot, exécute l'installation, relance Greenshot depuis son dossier
-    /// d'installation (relu dans le registre) et formule le résultat.
+    /// d'installation (relu dans le registre) s'il ne tourne pas déjà, et formule le
+    /// résultat, noté dans le journal.
     /// </summary>
     private async Task<UpdateOutcome> InstallAsync(Func<Task<int>> install)
     {
@@ -95,20 +113,24 @@ public sealed class UpdateService(
         try
         {
             var code = await install();
-            Log.Info($"Installation terminée, code {Winget.ExitCodeText(code)}");
-            var version = InstalledGreenshot.Find(registry)?.Version;
+            var text = Winget.ExitCodeText(code);
             outcome = code == 0
-                ? new UpdateOutcome(true, $"Greenshot est à jour (version {Describe(version)}).")
-                : new UpdateOutcome(false, $"La mise à jour a échoué (code {Winget.ExitCodeText(code)}).");
+                ? new UpdateOutcome(true, false, $"Greenshot est à jour (version {Describe(InstalledGreenshot.Find(registry)?.Version)}).")
+                : new UpdateOutcome(false, CancelCodes.Contains(code), $"La mise à jour a échoué (code {text}).");
+            Log.Info($"Installation terminée, code {text} : {(outcome.Cancelled ? "annulée par l'utilisateur" : outcome.Message)}");
         }
         catch (Exception exc) when (exc is not OperationCanceledException)
         {
             Log.Error($"Installation : {exc}");
-            outcome = new UpdateOutcome(false, $"La mise à jour a échoué : {exc.Message}");
+            var cancelled = exc is System.ComponentModel.Win32Exception { NativeErrorCode: ErrorCancelled };
+            outcome = new UpdateOutcome(false, cancelled, $"La mise à jour a échoué : {exc.Message}");
         }
 
+        // L'assistant de Greenshot peut l'avoir relancé lui-même.
         var exe = InstalledGreenshot.Find(registry)?.ExePath ?? closedPath;
-        if (exe is not null && File.Exists(exe))
+        if (greenshot.IsRunning)
+            Log.Info("Greenshot tourne déjà : pas de relance");
+        else if (exe is not null && File.Exists(exe))
             greenshot.Start(exe);
         return outcome;
     }

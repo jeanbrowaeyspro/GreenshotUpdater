@@ -50,10 +50,32 @@ public partial class App : Application
             Shutdown();
             return;
         }
-        var window = new UpdatePromptWindow(new UpdatePromptViewModel(check, services.Updates, services.Dialogs));
+        var window = CreateUpdatePrompt(check, services, owner: null);
         window.Closed += (_, _) => Shutdown();
         MainWindow = window;
         window.Show();
+    }
+
+    /// <summary>
+    /// Fenêtre de mise à jour. Dès que l'installation est lancée, elle est masquée avec sa
+    /// fenêtre propriétaire (réglages) : le processus attend la fin de l'installation sans
+    /// rien afficher (l'instance unique reste prise), puis la fenêtre propriétaire est
+    /// fermée, ce qui termine l'application.
+    /// </summary>
+    private static UpdatePromptWindow CreateUpdatePrompt(UpdateCheck check, AppServices services, Window? owner)
+    {
+        var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs);
+        var window = new UpdatePromptWindow(viewModel) { Owner = owner };
+        if (owner is not null)
+        {
+            viewModel.InstallStarted += owner.Hide;
+            window.Closed += (_, _) =>
+            {
+                if (viewModel.Outcome is not null)
+                    owner.Close();
+            };
+        }
+        return window;
     }
 
     private void ShowSettings(AppServices services, AppArguments args)
@@ -62,9 +84,7 @@ public partial class App : Application
                                               AppSettings.Load(services.Paths.SettingsFile),
                                               args.LauncherPath, services.Dialogs);
         var window = new SettingsWindow(viewModel);
-        viewModel.UpdateOffered += check =>
-            new UpdatePromptWindow(new UpdatePromptViewModel(check, services.Updates, services.Dialogs)) { Owner = window }
-                .ShowDialog();
+        viewModel.UpdateOffered += check => CreateUpdatePrompt(check, services, window).ShowDialog();
         window.Closed += (_, _) =>
         {
             if (viewModel.PendingCommand is { } command)

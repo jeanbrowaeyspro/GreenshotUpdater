@@ -41,7 +41,7 @@ de réglages), avec l'icône de l'application. Les options sont mémorisées dan
 `%APPDATA%\GreenshotUpdater\settings.json`.
 
 Une fois installé, la fenêtre affiche aussi la version installée de Greenshot et la dernière version
-stable ; "Vérifier maintenant" propose la mise à jour si elle existe.
+stable ; "Vérifier maintenant" propose la mise à jour si elle existe (voir plus bas).
 
 ### Greenshot.ini pendant que Greenshot tourne
 
@@ -68,13 +68,23 @@ Aucune fenêtre au départ :
    y). Installer maintenant ?" :
    - "Installer" : Greenshot est fermé, puis
      `winget upgrade --id Greenshot.Greenshot --exact --interactive --accept-source-agreements --accept-package-agreements`
-     est lancé (UAC puis assistant de Greenshot), Greenshot est relancé et le résultat
-     affiché (succès, ou échec avec le code de winget). Si winget est introuvable,
+     est lancé (UAC puis assistant de Greenshot). Si winget est introuvable,
      GreenshotUpdater propose de télécharger l'installeur
      `Greenshot-INSTALLER-*-RELEASE.exe` de la release GitHub et de le lancer.
+     Dès le lancement, la fenêtre disparaît : GreenshotUpdater attend la fin de
+     l'installation sans rien afficher, relance Greenshot s'il ne tourne pas déjà
+     (l'assistant de Greenshot peut l'avoir relancé lui-même), note le résultat dans
+     le journal et se termine. Aucun message en cas de succès ni d'annulation (assistant
+     ou UAC annulés : codes `0x8A15010C`, `1223`, `0x800704C7`, `2` et `5`) ; un
+     message d'erreur avec le code de sortie dans les autres cas.
    - "Plus tard" : rien n'est mémorisé, la question revient au prochain démarrage.
 
-Une seule instance tourne à la fois. Le déroulement est noté dans
+"Vérifier maintenant" (fenêtre de réglages) ouvre la même fenêtre ; "Installer" y masque
+aussi la fenêtre de réglages, qui est fermée à la fin de l'installation.
+
+Une seule instance tourne à la fois : l'instance unique reste prise pendant l'attente
+invisible de l'installation (un lancement depuis le menu Démarrer à ce moment se ferme
+aussitôt) et n'est libérée qu'à la fin. Le déroulement est noté dans
 `%LOCALAPPDATA%\GreenshotUpdater\journal.log` (au-delà de 256 Ko, l'ancien journal
 devient `journal.old.log`).
 

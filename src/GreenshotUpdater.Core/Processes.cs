@@ -34,6 +34,9 @@ public interface IGreenshotProcess
     /// </summary>
     string? Close();
 
+    /// <summary>Vrai si Greenshot tourne (relancé par exemple par son propre assistant).</summary>
+    bool IsRunning { get; }
+
     void Start(string exePath);
 }
 
@@ -48,7 +51,7 @@ public sealed class GreenshotProcess(IProcessRunner runner) : IGreenshotProcess
     public string? Close()
     {
         string? path = null;
-        foreach (var process in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(InstalledGreenshot.ExeName)))
+        foreach (var process in Running())
         {
             using (process)
             {
@@ -72,6 +75,20 @@ public sealed class GreenshotProcess(IProcessRunner runner) : IGreenshotProcess
         }
         return path;
     }
+
+    public bool IsRunning
+    {
+        get
+        {
+            var processes = Running();
+            foreach (var process in processes)
+                process.Dispose();
+            return processes.Length > 0;
+        }
+    }
+
+    private static Process[] Running() =>
+        Process.GetProcessesByName(Path.GetFileNameWithoutExtension(InstalledGreenshot.ExeName));
 
     public void Start(string exePath) =>
         runner.Start(new ProcessStartInfo(exePath)

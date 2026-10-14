@@ -169,11 +169,16 @@ public sealed class FakeGreenshot(string? runningPath) : IGreenshotProcess
         return path;
     }
 
+    public bool IsRunning => RunningPath is not null;
+
     public void Start(string exePath)
     {
         Events.Add($"start {exePath}");
         RunningPath = exePath;
     }
+
+    /// <summary>Greenshot relancé hors de GreenshotUpdater (assistant d'installation).</summary>
+    public void StartedElsewhere(string exePath) => RunningPath = exePath;
 }
 
 /// <summary>Programmes externes simulés : mémorise les lancements, renvoie un code donné.</summary>

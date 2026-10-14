@@ -122,6 +122,37 @@ public class ViewTests
         AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait())), "proposition");
     }
 
+    [Fact]
+    public async Task WaitingWindowRendersInBothThemes()
+    {
+        var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
+        var service = Updates(registry);
+        var check = await service.CheckAsync([]);
+        DialogWindow Waiting()
+        {
+            var viewModel = new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait());
+            // Fenêtre de démarrage (sans propriétaire) : au premier plan tant qu'elle propose.
+            var window = DialogWindow.Create(viewModel, owner: null);
+            Assert.True(window.Topmost);
+            viewModel.ShowWaiting(viewModel.WaitingText);
+            return window;
+        }
+        AssertThemes(Waiting, "attente");
+        RunSta(() =>
+        {
+            var window = Waiting();
+            // Ni l'UAC ni l'assistant de Greenshot ne doivent être masqués.
+            Assert.False(window.Topmost);
+            var content = (DependencyObject)window.Content;
+            var progress = Assert.Single(FindAll<ProgressBar>(content));
+            Assert.True(progress.IsIndeterminate);
+            Assert.Equal(Visibility.Visible, progress.Visibility);
+            Assert.All(FindAll<Button>(content), b => Assert.Equal(Visibility.Collapsed, ((FrameworkElement)b.Parent).Visibility));
+            var texts = FindAll<TextBlock>(content).ToList();
+            Assert.Equal(DialogWindow.Glyph(DialogKind.Info), texts[0].Text);
+        });
+    }
+
     [Theory]
     [InlineData(DialogKind.Question, "Désinstaller GreenshotUpdater ?\n\nLe démarrage avec Windows et les raccourcis seront retirés.", "Désinstaller", "Annuler")]
     [InlineData(DialogKind.Info, "Installation terminée.", "OK")]

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <Compile Include="..\Shared\Switches.cs" Link="Switches.cs" />
+    <Compile Include="..\Shared\AppLocations.cs" Link="AppLocations.cs" />
   </ItemGroup>
 
 </Project>

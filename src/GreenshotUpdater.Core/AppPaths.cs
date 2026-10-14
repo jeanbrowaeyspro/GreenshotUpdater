@@ -4,44 +4,40 @@ namespace GreenshotUpdater;
 /// Emplacements utilisés par l'application. Les tests en construisent un jeu complet
 /// dans un dossier temporaire : rien n'est lu ni écrit dans les vrais dossiers.
 /// </summary>
+/// <param name="DataDir">Dossier de données locales : application extraite par le lanceur, journal.</param>
 public sealed record AppPaths(
     string InstallDir,
     string SettingsFile,
-    string LogFile,
+    string DataDir,
     string GreenshotIni,
     string DesktopDir,
     string StartMenuDir,
     string TempDir)
 {
-    public const string AppName = "GreenshotUpdater";
+    public const string AppName = AppLocations.AppName;
     public const string LauncherFileName = AppName + ".exe";
-    public const string AppFileName = AppName + ".App.exe";
+    public const string AppFileName = AppLocations.AppFileName;
     public const string ShortcutFileName = AppName + ".lnk";
 
     public string InstalledLauncher => Path.Combine(InstallDir, LauncherFileName);
-    public string InstalledApp => Path.Combine(InstallDir, AppFileName);
+    public string ExtractedApp => AppLocations.ExtractedApp(DataDir);
+    public string LogFile => Path.Combine(DataDir, "journal.log");
     public string DesktopShortcut => Path.Combine(DesktopDir, ShortcutFileName);
     public string StartMenuShortcut => Path.Combine(StartMenuDir, ShortcutFileName);
 
     /// <summary>Emplacements réels de l'utilisateur courant.</summary>
     public static AppPaths FromEnvironment()
     {
-        var local = Folder("LOCALAPPDATA", Environment.SpecialFolder.LocalApplicationData);
-        var roaming = Folder("APPDATA", Environment.SpecialFolder.ApplicationData);
+        var local = AppLocations.LocalAppData;
+        var roaming = AppLocations.Folder("APPDATA", Environment.SpecialFolder.ApplicationData);
         return new AppPaths(
             InstallDir: Path.Combine(local, "Programs", AppName),
             SettingsFile: Path.Combine(roaming, AppName, "settings.json"),
-            LogFile: Path.Combine(local, AppName, "journal.log"),
+            DataDir: AppLocations.DataDir(local),
             GreenshotIni: Path.Combine(roaming, "Greenshot", "Greenshot.ini"),
             DesktopDir: Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
             StartMenuDir: Environment.GetFolderPath(Environment.SpecialFolder.Programs),
             TempDir: Path.GetTempPath());
-    }
-
-    private static string Folder(string variable, Environment.SpecialFolder fallback)
-    {
-        var value = Environment.GetEnvironmentVariable(variable);
-        return string.IsNullOrEmpty(value) ? Environment.GetFolderPath(fallback) : value;
     }
 
     /// <summary>Vrai si le fichier donné se trouve dans le dossier d'installation.</summary>

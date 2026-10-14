@@ -79,7 +79,8 @@ public class LauncherTests
     [Fact]
     public void ExtractsAppOnlyWhenMissingOrDifferent()
     {
-        var path = Path.Combine(NewFolder(), EmbeddedApp.ResourceName);
+        // Dossier de données absent : créé à l'extraction.
+        var path = AppLocations.ExtractedApp(AppLocations.DataDir(NewFolder()));
         byte[] v1 = [1, 2, 3, 4], v2 = [1, 2, 3, 5], v3 = [1, 2, 3];
 
         Assert.False(EmbeddedApp.IsUpToDate(path, v1));

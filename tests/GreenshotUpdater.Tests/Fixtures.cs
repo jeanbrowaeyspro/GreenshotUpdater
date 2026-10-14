@@ -46,7 +46,7 @@ public static class Fixtures
         return new AppPaths(
             InstallDir: Path.Combine(root, "local", "Programs", AppPaths.AppName),
             SettingsFile: Path.Combine(root, "roaming", AppPaths.AppName, "settings.json"),
-            LogFile: Path.Combine(root, "local", AppPaths.AppName, "journal.log"),
+            DataDir: Path.Combine(root, "local", AppPaths.AppName),
             GreenshotIni: Path.Combine(root, "roaming", "Greenshot", "Greenshot.ini"),
             DesktopDir: Path.Combine(root, "Bureau"),
             StartMenuDir: Path.Combine(root, "Programmes"),

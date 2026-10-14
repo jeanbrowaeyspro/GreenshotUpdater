@@ -218,9 +218,9 @@ public class CoreTests
     public void InstallDirIsRecognised()
     {
         var paths = NewPaths();
-        Assert.True(paths.IsInInstallDir(paths.InstalledApp));
-        Assert.True(paths.IsInInstallDir(paths.InstalledApp.ToUpperInvariant()));
-        Assert.False(paths.IsInInstallDir(Path.Combine(paths.TempDir, AppPaths.AppFileName)));
+        Assert.True(paths.IsInInstallDir(paths.InstalledLauncher));
+        Assert.True(paths.IsInInstallDir(paths.InstalledLauncher.ToUpperInvariant()));
+        Assert.False(paths.IsInInstallDir(paths.ExtractedApp));
         Assert.False(paths.IsInInstallDir(null));
     }
 

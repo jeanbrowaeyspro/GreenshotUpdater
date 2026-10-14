@@ -17,10 +17,11 @@
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
     <Compile Include="..\Shared\Switches.cs" Link="Switches.cs" />
+    <Compile Include="..\Shared\AppLocations.cs" Link="AppLocations.cs" />
   </ItemGroup>
 
   <!-- Application publiée, passée par build.cmd (-p:AppExe=...). Sans elle, le lanceur
-       démarre l'application déjà présente à côté de lui. -->
+       démarre l'application déjà présente dans %LOCALAPPDATA%\GreenshotUpdater. -->
   <ItemGroup Condition="'$(AppExe)' != ''">
     <EmbeddedResource Include="$(AppExe)" LogicalName="GreenshotUpdater.App.exe" />
   </ItemGroup>

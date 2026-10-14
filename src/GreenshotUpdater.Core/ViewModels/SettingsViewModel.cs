@@ -12,7 +12,6 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly UpdateService _updates;
     private readonly AppSettings _settings;
     private readonly string? _launcherPath;
-    private readonly string? _currentExe;
     private readonly IDialogs _dialogs;
     private bool _installMode;
     private bool _isBusy;
@@ -21,17 +20,15 @@ public sealed class SettingsViewModel : ObservableObject
     private string _status = "";
 
     /// <param name="launcherPath">Lanceur transmis par <c>/lanceur</c> : fichier copié à l'installation.</param>
-    /// <param name="currentExe">Exécutable de l'application en cours.</param>
     public SettingsViewModel(Setup setup, UpdateService updates, AppSettings settings,
-                             string? launcherPath, string? currentExe, IDialogs dialogs)
+                             string? launcherPath, IDialogs dialogs)
     {
         _setup = setup;
         _updates = updates;
         _settings = settings;
         _launcherPath = launcherPath;
-        _currentExe = currentExe;
         _dialogs = dialogs;
-        _installMode = !setup.Paths.IsInInstallDir(currentExe);
+        _installMode = !setup.Paths.IsInInstallDir(launcherPath);
         ApplyCommand = new RelayCommand(Apply, () => !IsBusy && (!InstallMode || CanInstall));
         CheckCommand = new RelayCommand(() => _ = CheckAsync(offer: true), () => !IsBusy);
         UninstallCommand = new RelayCommand(Uninstall, () => !IsBusy && _setup.IsInstalled);
@@ -74,7 +71,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     // ------------------------------------------------------------- état
 
-    /// <summary>Vrai tant que l'application ne tourne pas depuis le dossier d'installation et n'y a pas été installée.</summary>
+    /// <summary>Vrai tant que le lanceur n'est pas celui du dossier d'installation et n'y a pas été installé.</summary>
     public bool InstallMode
     {
         get => _installMode;
@@ -87,7 +84,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public string ApplyText => InstallMode ? "Installer" : "Appliquer";
 
-    private bool CanInstall => _launcherPath is not null && File.Exists(_launcherPath) && _currentExe is not null;
+    private bool CanInstall => _launcherPath is not null && File.Exists(_launcherPath);
 
     public bool IsBusy
     {
@@ -120,7 +117,7 @@ public sealed class SettingsViewModel : ObservableObject
         private set => Set(ref _status, value);
     }
 
-    /// <summary>Suppression différée du dossier d'installation, à lancer à la fermeture.</summary>
+    /// <summary>Suppression différée du dossier d'installation et de l'application extraite, à lancer à la fermeture.</summary>
     public ProcessStartInfo? PendingCleanup { get; private set; }
 
     public RelayCommand ApplyCommand { get; }
@@ -136,7 +133,7 @@ public sealed class SettingsViewModel : ObservableObject
         Run(() =>
         {
             var warnings = InstallMode
-                ? _setup.Install(_launcherPath!, _currentExe!, _settings)
+                ? _setup.Install(_launcherPath!, _settings)
                 : _setup.Apply(_settings);
             Status = string.Join("\n", [InstallMode ? "Installation terminée." : "Options appliquées.", .. warnings]);
             InstallMode = false;

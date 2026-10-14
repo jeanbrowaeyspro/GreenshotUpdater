@@ -8,9 +8,12 @@ namespace GreenshotUpdater.Tests;
 public class SetupTests
 {
     private sealed record Bench(AppPaths Paths, FakeRegistry Registry, FakeGreenshot Greenshot, Setup Setup,
-                                string Launcher, string App);
+                                string Launcher);
 
-    /// <summary>Lanceur et application "téléchargés", Greenshot.ini présent.</summary>
+    /// <summary>
+    /// Lanceur "téléchargé", application extraite par lui dans le dossier de données
+    /// locales, Greenshot.ini présent.
+    /// </summary>
     private static Bench NewBench(string? greenshotRunning = null)
     {
         var paths = NewPaths();
@@ -19,13 +22,13 @@ public class SetupTests
         var downloads = Path.Combine(paths.TempDir, "Téléchargements");
         Directory.CreateDirectory(downloads);
         var launcher = Path.Combine(downloads, AppPaths.LauncherFileName);
-        var app = Path.Combine(downloads, AppPaths.AppFileName);
         File.WriteAllText(launcher, "lanceur");
-        File.WriteAllText(app, "application");
+        Directory.CreateDirectory(paths.DataDir);
+        File.WriteAllText(paths.ExtractedApp, "application");
         var registry = new FakeRegistry();
         var greenshot = new FakeGreenshot(greenshotRunning);
         var setup = new Setup(paths, registry, new FakeShortcuts(), new GreenshotConfig(paths.GreenshotIni, greenshot));
-        return new Bench(paths, registry, greenshot, setup, launcher, app);
+        return new Bench(paths, registry, greenshot, setup, launcher);
     }
 
     private static string? RunEntry(Bench b) =>
@@ -36,15 +39,15 @@ public class SetupTests
             () => @"C:\winget.exe", Path.GetTempPath());
 
     [Fact]
-    public void InstallCopiesFilesAndAppliesDefaults()
+    public void InstallCopiesOnlyTheLauncherAndAppliesDefaults()
     {
         var b = NewBench();
         Assert.False(b.Setup.IsInstalled);
-        Assert.Empty(b.Setup.Install(b.Launcher, b.App, new AppSettings()));
+        Assert.Empty(b.Setup.Install(b.Launcher, new AppSettings()));
 
         Assert.True(b.Setup.IsInstalled);
+        Assert.Equal([b.Paths.InstalledLauncher], Directory.GetFileSystemEntries(b.Paths.InstallDir));
         Assert.Equal("lanceur", File.ReadAllText(b.Paths.InstalledLauncher));
-        Assert.Equal("application", File.ReadAllText(b.Paths.InstalledApp));
         Assert.Equal($"\"{b.Paths.InstalledLauncher}\" /demarrage", RunEntry(b));
         Assert.Equal(0, GreenshotIni.ReadFile(b.Paths.GreenshotIni));
         Assert.False(File.Exists(b.Paths.DesktopShortcut));
@@ -56,7 +59,7 @@ public class SetupTests
     public void ApplyFollowsTheOptions()
     {
         var b = NewBench();
-        b.Setup.Install(b.Launcher, b.App, new AppSettings());
+        b.Setup.Install(b.Launcher, new AppSettings());
         var settings = new AppSettings
         {
             RunAtStartup = false,
@@ -76,16 +79,16 @@ public class SetupTests
     public void InstallFromInstallDirDoesNotCopyOntoItself()
     {
         var b = NewBench();
-        b.Setup.Install(b.Launcher, b.App, new AppSettings());
-        b.Setup.Install(b.Paths.InstalledLauncher, b.Paths.InstalledApp, new AppSettings());
-        Assert.Equal("application", File.ReadAllText(b.Paths.InstalledApp));
+        b.Setup.Install(b.Launcher, new AppSettings());
+        b.Setup.Install(b.Paths.InstalledLauncher, new AppSettings());
+        Assert.Equal("lanceur", File.ReadAllText(b.Paths.InstalledLauncher));
     }
 
     [Fact]
     public void UninstallRemovesEverything()
     {
         var b = NewBench();
-        b.Setup.Install(b.Launcher, b.App, new AppSettings { DesktopShortcut = true });
+        b.Setup.Install(b.Launcher, new AppSettings { DesktopShortcut = true });
         var cleanup = b.Setup.Uninstall();
 
         Assert.Null(RunEntry(b));
@@ -97,19 +100,26 @@ public class SetupTests
         Assert.NotNull(cleanup);
         Assert.Equal("cmd.exe", cleanup.FileName);
         Assert.Contains($"rmdir /s /q \"{b.Paths.InstallDir}\"", cleanup.Arguments);
+        Assert.Contains($"del /f /q \"{b.Paths.ExtractedApp}\"", cleanup.Arguments);
         Assert.True(cleanup.CreateNoWindow);
         Assert.False(cleanup.UseShellExecute);
     }
 
     [Fact]
-    public void DeferredDeletionRemovesTheFolder()
+    public void DeferredDeletionRemovesTheFolderAndTheApp()
     {
-        // Vraie commande cachée, sur un dossier temporaire.
-        var folder = NewFolder();
-        File.WriteAllText(Path.Combine(folder, "a.txt"), "");
-        using var process = System.Diagnostics.Process.Start(Setup.DeferredDeletion(folder))!;
+        // Vraie commande cachée, sur des emplacements temporaires.
+        var paths = NewPaths();
+        Directory.CreateDirectory(paths.InstallDir);
+        File.WriteAllText(paths.InstalledLauncher, "");
+        Directory.CreateDirectory(paths.DataDir);
+        File.WriteAllText(paths.ExtractedApp, "");
+        File.WriteAllText(paths.LogFile, "");
+        using var process = System.Diagnostics.Process.Start(Setup.DeferredDeletion(paths.InstallDir, paths.ExtractedApp))!;
         Assert.True(process.WaitForExit(30_000));
-        Assert.False(Directory.Exists(folder));
+        Assert.False(Directory.Exists(paths.InstallDir));
+        Assert.False(File.Exists(paths.ExtractedApp));
+        Assert.True(File.Exists(paths.LogFile));
     }
 
     // ------------------------------------------------------------- modèle de vue
@@ -119,7 +129,7 @@ public class SetupTests
     {
         var b = NewBench();
         var dialogs = new FakeDialogs();
-        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, b.App, dialogs);
+        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, dialogs);
         Assert.True(vm.InstallMode);
         Assert.Equal("Installer", vm.ApplyText);
         Assert.True(vm.ApplyCommand.CanExecute(null));
@@ -144,9 +154,9 @@ public class SetupTests
     public void RunningFromInstallDirShowsApply()
     {
         var b = NewBench();
-        b.Setup.Install(b.Launcher, b.App, new AppSettings());
+        b.Setup.Install(b.Launcher, new AppSettings());
         var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), AppSettings.Load(b.Paths.SettingsFile),
-                                       b.Paths.InstalledLauncher, b.Paths.InstalledApp, new FakeDialogs());
+                                       b.Paths.InstalledLauncher, new FakeDialogs());
         Assert.False(vm.InstallMode);
         Assert.Equal("Appliquer", vm.ApplyText);
     }
@@ -155,7 +165,7 @@ public class SetupTests
     public void WithoutLauncherInstallIsImpossible()
     {
         var b = NewBench();
-        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), null, b.App, new FakeDialogs());
+        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), null, new FakeDialogs());
         Assert.False(vm.ApplyCommand.CanExecute(null));
         Assert.Contains("GreenshotUpdater.exe", vm.Status);
     }
@@ -164,18 +174,18 @@ public class SetupTests
     public void UninstallAsksAndPreparesCleanup()
     {
         var b = NewBench();
-        b.Setup.Install(b.Launcher, b.App, new AppSettings());
+        b.Setup.Install(b.Launcher, new AppSettings());
         var closed = false;
 
         var refuse = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Paths.InstalledLauncher,
-                                           b.Paths.InstalledApp, new FakeDialogs(answer: false));
+                                           new FakeDialogs(answer: false));
         refuse.UninstallCommand.Execute(null);
         Assert.Null(refuse.PendingCleanup);
         Assert.NotNull(RunEntry(b));
 
         var dialogs = new FakeDialogs();
         var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Paths.InstalledLauncher,
-                                       b.Paths.InstalledApp, dialogs);
+                                       dialogs);
         vm.RequestClose += () => closed = true;
         vm.UninstallCommand.Execute(null);
         Assert.NotNull(vm.PendingCleanup);
@@ -189,7 +199,7 @@ public class SetupTests
     {
         var b = NewBench();
         var dialogs = new FakeDialogs();
-        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, b.App, dialogs);
+        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, dialogs);
         // Dossier d'installation occupé par un fichier : la copie échoue.
         Directory.CreateDirectory(Path.GetDirectoryName(b.Paths.InstallDir)!);
         File.WriteAllText(b.Paths.InstallDir, "");
@@ -205,7 +215,7 @@ public class SetupTests
     {
         var b = NewBench();
         b.Registry.WithGreenshot("1.3.315", @"C:\Program Files\Greenshot\");
-        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, b.App, new FakeDialogs());
+        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, new FakeDialogs());
         UpdateCheck? offered = null;
         vm.UpdateOffered += check => offered = check;
 
@@ -226,19 +236,19 @@ public class SetupTests
     {
         var upToDate = NewBench();
         upToDate.Registry.WithGreenshot("1.3.323", null);
-        var vm = new SettingsViewModel(upToDate.Setup, Updates(upToDate.Registry), new AppSettings(), null, null, new FakeDialogs());
+        var vm = new SettingsViewModel(upToDate.Setup, Updates(upToDate.Registry), new AppSettings(), null, new FakeDialogs());
         await vm.CheckAsync(offer: true);
         Assert.Equal("Greenshot est à jour.", vm.Status);
 
         var missing = NewBench();
-        vm = new SettingsViewModel(missing.Setup, Updates(missing.Registry), new AppSettings(), null, null, new FakeDialogs());
+        vm = new SettingsViewModel(missing.Setup, Updates(missing.Registry), new AppSettings(), null, new FakeDialogs());
         await vm.CheckAsync(offer: true);
         Assert.Equal("non installé", vm.InstalledVersionText);
         Assert.Equal("Greenshot n'est pas installé.", vm.Status);
 
         var offline = NewBench();
         vm = new SettingsViewModel(offline.Setup, Updates(offline.Registry, new FakeReleases(FakeReleases.Offline)),
-                                   new AppSettings(), null, null, new FakeDialogs());
+                                   new AppSettings(), null, new FakeDialogs());
         await vm.CheckAsync(offer: true);
         Assert.Equal("inconnue", vm.LatestVersionText);
         Assert.StartsWith("GitHub ne répond pas", vm.Status);

@@ -8,7 +8,8 @@ namespace GreenshotUpdater.Launcher;
 
 /// <summary>
 /// Vérifie le runtime .NET Desktop 10 (propose de l'installer), extrait
-/// GreenshotUpdater.App.exe à côté du lanceur si besoin, puis la démarre en lui
+/// GreenshotUpdater.App.exe dans %LOCALAPPDATA%\GreenshotUpdater si besoin (rien n'est
+/// écrit à côté du lanceur), puis la démarre en lui
 /// transmettant la ligne de commande et le chemin du lanceur.
 /// </summary>
 public static class Program
@@ -23,7 +24,7 @@ public static class Program
             if (!RuntimeCheck.IsInstalled(RuntimeCheck.CandidateRoots()) && !RuntimeSetup.Run())
                 return 1;
             var launcher = Assembly.GetExecutingAssembly().Location;
-            var app = Path.Combine(Path.GetDirectoryName(launcher)!, EmbeddedApp.ResourceName);
+            var app = AppLocations.ExtractedApp(AppLocations.DataDir(AppLocations.LocalAppData));
             if (!PrepareApp(app))
                 return 1;
             Process.Start(new ProcessStartInfo(app, CommandLine.ForApp(launcher, Environment.CommandLine))
@@ -68,8 +69,7 @@ public static class Program
         catch (Exception exc) when (exc is IOException or UnauthorizedAccessException)
         {
             Error($"Impossible d'écrire {EmbeddedApp.ResourceName} dans le dossier :\n"
-                  + $"{Path.GetDirectoryName(app)}\n\n{exc.Message}\n\n"
-                  + "Copiez GreenshotUpdater.exe dans un dossier où vous pouvez écrire (Téléchargements, Bureau…).");
+                  + $"{Path.GetDirectoryName(app)}\n\n{exc.Message}");
             return false;
         }
     }

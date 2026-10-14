@@ -96,7 +96,7 @@ public class ViewTests
         var paths = NewPaths();
         var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
         var setup = new Setup(paths, registry, new FakeShortcuts(), new GreenshotConfig(paths.GreenshotIni, new FakeGreenshot(null)));
-        var vm = new SettingsViewModel(setup, Updates(registry), new AppSettings(), null, null, new FakeDialogs());
+        var vm = new SettingsViewModel(setup, Updates(registry), new AppSettings(), null, new FakeDialogs());
         await vm.CheckAsync(offer: false);
         Assert.Equal("GreenshotUpdater 1.0.0", AppInfo.Title);
         AssertThemes(() => new SettingsWindow(vm), "reglages");

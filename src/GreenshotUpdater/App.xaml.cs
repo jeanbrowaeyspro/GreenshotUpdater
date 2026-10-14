@@ -60,7 +60,7 @@ public partial class App : Application
     {
         var viewModel = new SettingsViewModel(services.Setup, services.Updates,
                                               AppSettings.Load(services.Paths.SettingsFile),
-                                              args.LauncherPath, Environment.ProcessPath, services.Dialogs);
+                                              args.LauncherPath, services.Dialogs);
         var window = new SettingsWindow(viewModel);
         viewModel.UpdateOffered += check =>
             new UpdatePromptWindow(new UpdatePromptViewModel(check, services.Updates, services.Dialogs)) { Owner = window }

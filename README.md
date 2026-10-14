@@ -16,7 +16,7 @@ administrateur pour l'installer.
    et de l'installer ; l'installeur demande lui-même l'élévation (UAC).
 3. La fenêtre de réglages s'ouvre : choisir les options puis cliquer sur "Installer".
 
-L'installation copie le lanceur (et l'application qu'il a extraite) dans
+L'installation copie le lanceur, seul fichier du dossier, dans
 `%LOCALAPPDATA%\Programs\GreenshotUpdater`, puis applique les options. Lancé depuis ce
 dossier, le bouton devient "Appliquer". Relancer un `GreenshotUpdater.exe` plus récent
 puis "Installer" met à jour la copie installée.
@@ -76,9 +76,10 @@ devient `journal.old.log`).
 
 Bouton "Désinstaller" de la fenêtre de réglages (menu Démarrer > GreenshotUpdater),
 après confirmation : retrait de l'entrée Run, `UpdateCheckInterval=14` rétabli,
-raccourcis et `settings.json` supprimés. Le dossier d'installation, qui contient
-l'exécutable en cours, est supprimé quelques secondes après la fermeture par une
-commande `cmd` cachée. Le journal (`%LOCALAPPDATA%\GreenshotUpdater`) est conservé.
+raccourcis et `settings.json` supprimés. Le dossier d'installation et
+`%LOCALAPPDATA%\GreenshotUpdater\GreenshotUpdater.App.exe` (l'exécutable en cours) sont
+supprimés quelques secondes après la fermeture par une commande `cmd` cachée. Le journal
+(`%LOCALAPPDATA%\GreenshotUpdater\journal.log`) est conservé.
 
 ## Lanceur et application
 
@@ -89,8 +90,9 @@ sans runtime embarqué). À chaque démarrage, il :
 1. vérifie le runtime `Microsoft.WindowsDesktop.App` 10.x x64 (`DOTNET_ROOT`, registre
    `HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\InstallLocation` vue 32 bits,
    `%ProgramFiles%\dotnet`) et propose de l'installer s'il manque ;
-2. extrait `GreenshotUpdater.App.exe` à côté de lui s'il manque ou diffère (taille puis
-   empreinte SHA-256) ;
+2. extrait `GreenshotUpdater.App.exe` dans `%LOCALAPPDATA%\GreenshotUpdater` s'il manque
+   ou diffère (taille puis empreinte SHA-256) : rien n'est écrit à côté du lanceur, que
+   ce soit dans le dossier de téléchargement ou dans le dossier d'installation ;
 3. démarre l'application avec `/lanceur "<chemin du lanceur>"` suivi de sa propre ligne
    de commande, puis se termine.
 
@@ -128,6 +130,7 @@ build.cmd                         construction du livrable
 Directory.Build.props             version et réglages communs
 assets\icon.ico, icon.png         icône (générée par build_tools\MakeIcon.cs)
 src\Shared\Switches.cs            arguments /demarrage et /lanceur (lanceur et application)
+src\Shared\AppLocations.cs        nom et emplacement de l'application extraite (lanceur et application)
 src\GreenshotUpdater.Core\        logique sans interface et modèles de vue
     AppPaths, AppSettings, AppArguments, Log
     VersionText, GitHubRelease     versions, API GitHub

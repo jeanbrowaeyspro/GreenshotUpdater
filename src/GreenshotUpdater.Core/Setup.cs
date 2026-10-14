@@ -59,6 +59,13 @@ public sealed class Setup(AppPaths paths, IRegistryStore registry, IShortcutWrit
         if (wanted)
             shortcuts.Create(path, paths.InstalledLauncher, ShortcutDescription);
         else
+            Delete(path);
+    }
+
+    /// <summary>Supprime le fichier s'il existe (son dossier peut manquer).</summary>
+    private static void Delete(string path)
+    {
+        if (File.Exists(path))
             File.Delete(path);
     }
 
@@ -71,9 +78,9 @@ public sealed class Setup(AppPaths paths, IRegistryStore registry, IShortcutWrit
     {
         registry.DeleteValue(RegistryRoot.CurrentUser, RunPath, RunValue);
         greenshot.SetUpdateCheck(disable: false);
-        File.Delete(paths.DesktopShortcut);
-        File.Delete(paths.StartMenuShortcut);
-        File.Delete(paths.SettingsFile);
+        Delete(paths.DesktopShortcut);
+        Delete(paths.StartMenuShortcut);
+        Delete(paths.SettingsFile);
         var settingsDir = Path.GetDirectoryName(paths.SettingsFile)!;
         if (Directory.Exists(settingsDir) && !Directory.EnumerateFileSystemEntries(settingsDir).Any())
             Directory.Delete(settingsDir);

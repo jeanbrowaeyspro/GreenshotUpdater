@@ -42,17 +42,11 @@ public static class ThemeManager
         }
         var dark = SystemIsDark();
         app.ThemeMode = dark ? ThemeMode.Dark : ThemeMode.Light;
-        Fill(app.Resources, dark);
+        ApplyBrushes(app.Resources, dark);
     }
 
-    /// <summary>Thème imposé à une seule fenêtre (rendu hors écran des tests).</summary>
-    public static void Apply(Window window, bool dark)
-    {
-        window.ThemeMode = dark ? ThemeMode.Dark : ThemeMode.Light;
-        Fill(window.Resources, dark);
-    }
-
-    private static void Fill(ResourceDictionary resources, bool dark)
+    /// <summary>Pinceaux propres à l'application pour le thème donné.</summary>
+    public static void ApplyBrushes(ResourceDictionary resources, bool dark)
     {
         resources["MutedTextBrush"] = Frozen(dark ? Color.FromRgb(0x98, 0xA2, 0xB0) : Color.FromRgb(0x6B, 0x74, 0x80));
         resources["PanelBorderBrush"] = Frozen(dark ? Color.FromRgb(0x33, 0x39, 0x44) : Color.FromRgb(0xDC, 0xE1, 0xE8));

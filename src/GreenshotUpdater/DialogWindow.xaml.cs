@@ -7,18 +7,38 @@ namespace GreenshotUpdater;
 
 /// <summary>
 /// Seule fenêtre de message de l'application (questions, informations, erreurs,
-/// proposition de mise à jour, attente de l'assistant de Greenshot) : thème Fluent de l'application, clair ou sombre, comme
-/// la fenêtre de réglages, y compris quand le thème de Windows change.
+/// proposition de mise à jour, attente de l'installation de Greenshot et message de fin) :
+/// thème Fluent de l'application, clair ou sombre, comme la fenêtre de réglages, y
+/// compris quand le thème de Windows change.
 /// </summary>
 public partial class DialogWindow : Window
 {
     private readonly DialogViewModel _viewModel;
 
+    /// <summary>Premier plan forcé hors attente (fenêtre sans propriétaire visible).</summary>
+    private bool _foreground;
+
     public DialogWindow(DialogViewModel viewModel)
     {
         InitializeComponent();
         DataContext = _viewModel = viewModel;
-        foreach (var model in viewModel.Buttons)
+        ShowButtons();
+        ShowState();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(DialogViewModel.Buttons))
+                ShowButtons();
+            else if (e.PropertyName is nameof(DialogViewModel.Kind) or nameof(DialogViewModel.IsWaiting))
+                ShowState();
+        };
+        viewModel.RequestClose += Close;
+    }
+
+    /// <summary>Un bouton par <see cref="DialogButton"/> du modèle de vue.</summary>
+    private void ShowButtons()
+    {
+        ButtonsPanel.Children.Clear();
+        foreach (var model in _viewModel.Buttons)
         {
             var button = new Button
             {
@@ -33,20 +53,12 @@ public partial class DialogWindow : Window
                 button.SetResourceReference(StyleProperty, "AccentButtonStyle");
             ButtonsPanel.Children.Add(button);
         }
-        ShowState();
-        viewModel.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(DialogViewModel.Kind) or nameof(DialogViewModel.IsWaiting))
-                ShowState();
-        };
-        viewModel.RequestHide += Hide;
-        viewModel.RequestClose += Close;
     }
 
     /// <summary>
     /// Symbole de la nature du message ; en attente, barre de progression à la place des
-    /// boutons et plus de premier plan forcé (ni l'UAC ni l'assistant ne doivent être
-    /// masqués).
+    /// boutons et plus de premier plan forcé (l'UAC ne doit pas être masquée). En sortie
+    /// d'attente (message de fin), la fenêtre est ramenée devant.
     /// </summary>
     private void ShowState()
     {
@@ -55,13 +67,14 @@ public partial class DialogWindow : Window
                                     _viewModel.Kind == DialogKind.Error ? "SystemFillColorCriticalBrush" : "AccentTextFillColorPrimaryBrush");
         Progress.Visibility = _viewModel.IsWaiting ? Visibility.Visible : Visibility.Collapsed;
         ButtonsPanel.Visibility = _viewModel.IsWaiting ? Visibility.Collapsed : Visibility.Visible;
-        if (_viewModel.IsWaiting)
-            Topmost = false;
+        Topmost = _foreground && !_viewModel.IsWaiting;
+        if (!_viewModel.IsWaiting && IsVisible)
+            Activate();
     }
 
     /// <summary>
     /// Fenêtre centrée sur <paramref name="owner"/> s'il est visible ; sinon centrée à
-    /// l'écran, au premier plan et présente dans la barre des tâches.
+    /// l'écran, au premier plan (hors attente) et présente dans la barre des tâches.
     /// </summary>
     public static DialogWindow Create(DialogViewModel viewModel, Window? owner)
     {
@@ -73,7 +86,10 @@ public partial class DialogWindow : Window
             window.ShowInTaskbar = false;
         }
         else
-            window.Topmost = true;
+        {
+            window._foreground = true;
+            window.Topmost = !viewModel.IsWaiting;
+        }
         return window;
     }
 

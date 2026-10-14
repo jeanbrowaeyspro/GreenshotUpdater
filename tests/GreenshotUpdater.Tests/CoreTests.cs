@@ -163,10 +163,19 @@ public class CoreTests
     {
         var start = Winget.UpgradeCommand(@"C:\winget.exe");
         Assert.Equal(@"C:\winget.exe", start.FileName);
-        Assert.Equal("upgrade --id Greenshot.Greenshot --exact --interactive --accept-source-agreements --accept-package-agreements",
+        Assert.Equal("upgrade --id Greenshot.Greenshot --exact --silent --accept-source-agreements --accept-package-agreements",
                      start.Arguments);
         Assert.False(start.UseShellExecute);
         Assert.True(start.CreateNoWindow);
+    }
+
+    [Fact]
+    public void BuildsSilentInstallerCommand()
+    {
+        var start = InnoSetup.SilentCommand(@"C:\temp\Greenshot-INSTALLER-1.3.323-RELEASE.exe");
+        Assert.Equal(@"C:\temp\Greenshot-INSTALLER-1.3.323-RELEASE.exe", start.FileName);
+        Assert.Equal("/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", start.Arguments);
+        Assert.True(start.UseShellExecute);
     }
 
     [Fact]

@@ -3,7 +3,7 @@ using static GreenshotUpdater.Tests.Fixtures;
 
 namespace GreenshotUpdater.Tests;
 
-/// <summary>Vérification au démarrage, mise à jour par winget ou par l'installeur GitHub.</summary>
+/// <summary>Vérification au démarrage, mise à jour silencieuse par winget ou par l'installeur GitHub.</summary>
 public class UpdateTests
 {
     /// <summary>Greenshot 1.3.315 installé dans un dossier temporaire (exécutable factice).</summary>
@@ -78,38 +78,96 @@ public class UpdateTests
         Assert.False(check.UpdateAvailable);
     }
 
+    /// <summary>Proposition de mise à jour sur Greenshot 1.3.315 installé, 1.3.323 disponible.</summary>
+    private static async Task<UpdatePromptViewModel> Prompt(UpdateService service, IDialogs? dialogs = null) =>
+        new(await service.CheckAsync([]), service, dialogs ?? new FakeDialogs());
+
+    /// <summary>Registre mis à jour à la version publiée, comme le fait l'installeur.</summary>
+    private static Action Installs(FakeRegistry registry, string exe) =>
+        () => registry.WithGreenshot("1.3.323", Path.GetDirectoryName(exe) + @"\");
+
     [Fact]
-    public async Task WingetUpdateClosesRunsAndRestartsGreenshot()
+    public async Task WingetUpdateWaitsForTheEndThenConfirms()
     {
         var (registry, exe) = GreenshotOnDisk();
         var greenshot = new FakeGreenshot(exe);
-        // Pendant winget, le registre passe à la nouvelle version.
-        var runner = new FakeRunner { During = () => registry.WithGreenshot("1.3.323", Path.GetDirectoryName(exe) + @"\") };
-        var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner);
-        var check = await service.CheckAsync([]);
+        var installEnd = new TaskCompletionSource();
+        var runner = new FakeRunner { During = Installs(registry, exe), Until = installEnd.Task };
         var dialogs = new FakeDialogs();
-        var vm = new UpdatePromptViewModel(check, service, dialogs, new FakeWindows().Wait());
-        var events = new List<string>();
-        vm.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(vm.IsWaiting))
-                events.Add($"attente, lancements {runner.Runs.Count}");
-        };
-        vm.RequestHide += () => events.Add($"masquée, occupée {vm.IsBusy}");
-        vm.RequestClose += () => events.Add($"fermée, occupée {vm.IsBusy}");
+        var vm = await Prompt(Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner), dialogs);
+        var closed = 0;
+        vm.RequestClose += () => closed++;
         Assert.True(vm.InstallCommand.CanExecute(null));
 
-        await vm.InstallAsync();
-        // Attente affichée avant winget ; winget terminé sans assistant visible : masquée, puis fermée.
-        Assert.Equal(["attente, lancements 0", "masquée, occupée True", "fermée, occupée False"], events);
-        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
+        var install = vm.InstallAsync();
+        // Fenêtre d'attente jusqu'à la fin de winget, sans bouton ni fermeture possible.
+        Assert.True(vm.IsWaiting);
+        Assert.Equal(DialogKind.Info, vm.Kind);
+        Assert.Equal("Installation de Greenshot 1.3.323…\n\nAutorisez la modification de l'appareil si Windows le demande.", vm.Message);
+        Assert.Equal(vm.WaitingText, vm.Message);
+        Assert.False(vm.CanClose);
+        Assert.False(vm.InstallCommand.CanExecute(null));
+        await WaitUntil(() => runner.Runs.Count == 1);
+        await Task.Delay(50);
+        Assert.True(vm.IsWaiting);
+        Assert.Null(vm.Outcome);
+        Assert.Equal(0, closed);
+
+        installEnd.SetResult();
+        await install.WaitAsync(TimeSpan.FromSeconds(10));
         var run = Assert.Single(runner.Runs);
         Assert.Equal(@"C:\winget.exe", run.FileName);
         Assert.Equal(Winget.UpgradeArguments, run.Arguments);
+        Assert.True(run.CreateNoWindow);
+        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
+
+        // La fenêtre devient la confirmation, OK ferme.
         Assert.True(vm.Outcome!.Success);
-        Assert.Equal("Greenshot est à jour (version 1.3.323).", vm.Outcome.Message);
-        // Pas de message de succès.
+        Assert.False(vm.IsWaiting);
+        Assert.Equal(DialogKind.Info, vm.Kind);
+        Assert.Equal("Greenshot 1.3.323 est installé.", vm.Message);
+        var ok = Assert.Single(vm.Buttons);
+        Assert.Equal("OK", ok.Text);
+        Assert.True(ok.IsDefault && ok.IsCancel);
+        Assert.True(vm.CanClose);
+        Assert.Equal(0, closed);
+        ok.Command.Execute(null);
+        Assert.Equal(1, closed);
         Assert.Empty(dialogs.Shown);
+    }
+
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "délai dépassé");
+            await Task.Delay(5);
+        }
+    }
+
+    [Fact]
+    public async Task UnexpectedVersionIsReported()
+    {
+        // Installeur terminé sans erreur, mais le registre donne toujours 1.3.315.
+        var (registry, exe) = GreenshotOnDisk();
+        var vm = await Prompt(Service(registry, new FakeReleases(FakeReleases.Latest), new FakeGreenshot(exe), new FakeRunner()));
+        await vm.InstallAsync();
+        Assert.True(vm.Outcome!.Success);
+        Assert.Equal("L'installation de Greenshot 1.3.323 s'est terminée, mais la version installée relue est 1.3.315.", vm.Message);
+        Assert.Equal("Greenshot 1.3.323 est installé.", UpdateService.InstalledText(new Version(1, 3, 323, 0), new Version(1, 3, 323, 0)));
+        Assert.EndsWith("relue est aucune.", UpdateService.InstalledText(new Version(1, 3, 323, 0), null));
+    }
+
+    [Fact]
+    public async Task GreenshotIsStartedAfterASuccessEvenIfItWasNotRunning()
+    {
+        var (registry, exe) = GreenshotOnDisk();
+        var greenshot = new FakeGreenshot(null);
+        var runner = new FakeRunner { During = Installs(registry, exe) };
+        var vm = await Prompt(Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner));
+        await vm.InstallAsync();
+        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
     }
 
     [Fact]
@@ -118,73 +176,87 @@ public class UpdateTests
         var (registry, exe) = GreenshotOnDisk();
         var greenshot = new FakeGreenshot(exe);
         var runner = new FakeRunner { During = () => greenshot.StartedElsewhere(exe) };
-        var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner);
-        var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, new FakeDialogs(), new FakeWindows().Wait());
+        var vm = await Prompt(Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner));
         await vm.InstallAsync();
         Assert.Equal(["close"], greenshot.Events);
         Assert.True(greenshot.IsRunning);
     }
 
-    [Fact]
-    public async Task WingetFailureShowsTheCode()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WingetFailureShowsTheCode(bool wasRunning)
     {
         var (registry, exe) = GreenshotOnDisk();
-        var greenshot = new FakeGreenshot(exe);
+        var greenshot = new FakeGreenshot(wasRunning ? exe : null);
         var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, new FakeRunner(unchecked((int)0x8A150011)));
         var dialogs = new FakeDialogs();
-        var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, dialogs, new FakeWindows().Wait());
+        var vm = await Prompt(service, dialogs);
         var closed = false;
         vm.RequestClose += () => closed = true;
         await vm.InstallAsync();
         Assert.False(vm.Outcome!.Success);
-        Assert.Equal("La mise à jour a échoué (code 0x8A150011).", Assert.Single(dialogs.Shown));
-        Assert.True(closed);
-        // Greenshot est relancé même après un échec.
-        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
+        // La fenêtre d'attente devient le message d'erreur.
+        Assert.False(vm.IsWaiting);
+        Assert.Equal(DialogKind.Error, vm.Kind);
+        Assert.Equal("La mise à jour a échoué (code 0x8A150011).", vm.Message);
+        Assert.Equal("OK", Assert.Single(vm.Buttons).Text);
+        Assert.False(closed);
+        Assert.Empty(dialogs.Shown);
+        // Greenshot relancé seulement s'il tournait avant.
+        Assert.Equal(wasRunning ? ["close", $"start {exe}"] : ["close"], greenshot.Events);
     }
 
     [Theory]
-    [InlineData(unchecked((int)0x8A15010C))]
-    [InlineData(1223)]
-    [InlineData(5)]
-    public async Task CancellationShowsNothing(int code)
+    [InlineData(unchecked((int)0x8A15010C), true)]
+    [InlineData(1223, true)]
+    [InlineData(5, true)]
+    [InlineData(1223, false)]
+    public async Task CancellationClosesWithoutMessage(int code, bool wasRunning)
     {
         var (registry, exe) = GreenshotOnDisk();
-        var greenshot = new FakeGreenshot(exe);
+        var greenshot = new FakeGreenshot(wasRunning ? exe : null);
         var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, new FakeRunner(code));
         var dialogs = new FakeDialogs();
-        var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, dialogs, new FakeWindows().Wait());
+        var vm = await Prompt(service, dialogs);
+        var closed = false;
+        vm.RequestClose += () => closed = true;
         await vm.InstallAsync();
         Assert.True(vm.Outcome!.Cancelled);
+        Assert.True(closed);
         Assert.Empty(dialogs.Shown);
-        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
+        Assert.Equal(wasRunning ? ["close", $"start {exe}"] : ["close"], greenshot.Events);
     }
 
     [Fact]
-    public async Task WithoutWingetTheGitHubInstallerIsOffered()
+    public async Task WithoutWingetTheGitHubInstallerRunsSilently()
     {
         var (registry, exe) = GreenshotOnDisk();
         var releases = new FakeReleases(FakeReleases.Latest);
-        var runner = new FakeRunner();
+        var runner = new FakeRunner { During = Installs(registry, exe) };
         var service = Service(registry, releases, new FakeGreenshot(exe), runner, winget: null);
-        var check = await service.CheckAsync([]);
 
         var refused = new FakeDialogs(answer: false);
-        var vm = new UpdatePromptViewModel(check, service, refused, new FakeWindows().Wait());
+        var vm = await Prompt(service, refused);
         await vm.InstallAsync();
         Assert.Contains("Greenshot-INSTALLER-1.3.323-RELEASE.exe", Assert.Single(refused.Shown));
         Assert.Empty(runner.Runs);
         Assert.Null(vm.Outcome);
+        Assert.False(vm.IsWaiting);
         Assert.True(vm.InstallCommand.CanExecute(null));
 
-        vm = new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait());
+        vm = await Prompt(service);
         await vm.InstallAsync();
         var download = Assert.Single(releases.Downloads);
-        Assert.Equal(check.Latest!.InstallerUrl, download.Url);
+        Assert.Equal(FakeReleases.Latest()!.InstallerUrl, download.Url);
         var run = Assert.Single(runner.Runs);
         Assert.Equal(download.Destination, run.FileName);
+        Assert.Equal("/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", run.Arguments);
+        Assert.Equal(InnoSetup.SilentArguments, run.Arguments);
+        // ShellExecute : l'installeur demande lui-même l'élévation (UAC).
         Assert.True(run.UseShellExecute);
         Assert.True(vm.Outcome!.Success);
+        Assert.Equal("Greenshot 1.3.323 est installé.", vm.Message);
     }
 
     [Fact]
@@ -193,8 +265,7 @@ public class UpdateTests
         var (registry, exe) = GreenshotOnDisk();
         var greenshot = new FakeGreenshot(exe);
         var runner = new FakeRunner();
-        var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner);
-        var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, new FakeDialogs(), new FakeWindows().Wait());
+        var vm = await Prompt(Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner));
         Assert.Equal(["Installer", "Plus tard"], vm.Buttons.Select(b => b.Text));
         Assert.Same(vm.CloseCommand, vm.Buttons[1].Command);
         var closed = false;
@@ -204,92 +275,4 @@ public class UpdateTests
         Assert.Empty(runner.Runs);
         Assert.Empty(greenshot.Events);
     }
-
-    [Fact]
-    public async Task WaitingWindowIsHiddenWhenTheWizardAppears()
-    {
-        var (registry, exe) = GreenshotOnDisk();
-        var greenshot = new FakeGreenshot(exe);
-        var installerClosed = new TaskCompletionSource();
-        var runner = new FakeRunner { Until = installerClosed.Task };
-        var service = Service(registry, new FakeReleases(FakeReleases.Latest), greenshot, runner);
-        // Assistant visible au troisième examen des fenêtres.
-        var windows = new FakeWindows([], [], [], [FakeWindows.Wizard]);
-        var dialogs = new FakeDialogs();
-        var vm = new UpdatePromptViewModel(await service.CheckAsync([]), service, dialogs, windows.Wait());
-        var hidden = new TaskCompletionSource();
-        vm.RequestHide += hidden.SetResult;
-        var closed = false;
-        vm.RequestClose += () => closed = true;
-
-        var install = vm.InstallAsync();
-        Assert.True(vm.IsWaiting);
-        Assert.Equal(DialogKind.Info, vm.Kind);
-        Assert.StartsWith("Préparation de la mise à jour de Greenshot 1.3.323…", vm.Message);
-        Assert.Equal(vm.WaitingText, vm.Message);
-        Assert.False(vm.CanClose);
-
-        await hidden.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        // Masquée à l'apparition de l'assistant, pendant l'installation.
-        Assert.Equal(4, windows.Calls);
-        Assert.Null(vm.Outcome);
-        Assert.True(vm.IsBusy);
-        Assert.False(closed);
-
-        installerClosed.SetResult();
-        await install.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.True(closed);
-        Assert.True(vm.Outcome!.Success);
-        Assert.Equal(["close", $"start {exe}"], greenshot.Events);
-        Assert.Empty(dialogs.Shown);
-    }
-
-    [Fact]
-    public async Task InstallerWaitEndsWhenTheInstallFinishes()
-    {
-        var installer = new TaskCompletionSource<int>();
-        var windows = new FakeWindows();
-        var wait = windows.Wait().WaitAsync(installer.Task);
-        await Task.Delay(20);
-        Assert.False(wait.IsCompleted);
-        // winget terminé (échec, UAC refusée…) sans que l'assistant soit apparu.
-        installer.SetResult(1223);
-        Assert.Equal(InstallerWaitEnd.InstallFinished, await wait.WaitAsync(TimeSpan.FromSeconds(10)));
-    }
-
-    [Fact]
-    public async Task InstallerWaitEndsAfterTheTimeout()
-    {
-        var never = new TaskCompletionSource<int>().Task;
-        var end = await new FakeWindows().Wait(TimeSpan.FromMilliseconds(50)).WaitAsync(never)
-                                          .WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(InstallerWaitEnd.TimedOut, end);
-        Assert.InRange(new InstallerWindowWait(new FakeWindows()).Timeout.TotalMinutes, 2, 10);
-    }
-
-    [Fact]
-    public async Task InstallerWindowAlreadyOpenIsIgnored()
-    {
-        // Page "Greenshot" déjà ouverte dans un navigateur : ignorée ; l'assistant apparu ensuite compte.
-        var page = new TopWindow(7, "Chrome_WidgetWin_1", "Greenshot - GitHub", 900, "chrome");
-        var windows = new FakeWindows([page], [page], [page], [page, FakeWindows.Wizard]);
-        var never = new TaskCompletionSource<int>().Task;
-        var end = await windows.Wait().WaitAsync(never).WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(InstallerWaitEnd.InstallerShown, end);
-        Assert.Equal(4, windows.Calls);
-    }
-
-    [Theory]
-    [InlineData("TWizardForm", "Installation - Greenshot", "Greenshot-INSTALLER-1.3.323-RELEASE.tmp", true)]
-    [InlineData("TSelectLanguageForm", "Langue de l'assistant d'installation", "", true)]
-    [InlineData("TMainForm", "Greenshot", "Greenshot-INSTALLER-1.3.323-RELEASE.tmp", true)]
-    [InlineData("WindowsForms10.Window.8.app", "Greenshot", "Greenshot", false)]
-    [InlineData("CabinetWClass", "Documents", "explorer", false)]
-    public void InstallerWindowsAreRecognised(string className, string title, string process, bool expected) =>
-        Assert.Equal(expected, InstallerWindowWait.IsInstaller(new TopWindow(1, className, title, 4242, process)));
-
-    [Fact]
-    public void OwnWindowsAreNotTheInstaller() =>
-        Assert.False(InstallerWindowWait.IsInstaller(
-            new TopWindow(1, "HwndWrapper[GreenshotUpdater.App]", "Préparation de la mise à jour de Greenshot", Environment.ProcessId, "")));
 }

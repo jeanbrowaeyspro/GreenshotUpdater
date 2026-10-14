@@ -119,37 +119,74 @@ public class ViewTests
         var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
         var service = Updates(registry);
         var check = await service.CheckAsync([]);
-        AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait())), "proposition");
+        AssertThemes(() => new DialogWindow(new UpdatePromptViewModel(check, service, new FakeDialogs())), "proposition");
+    }
+
+    /// <summary>Fenêtre de proposition au démarrage (sans propriétaire), passée en attente.</summary>
+    private static async Task<Func<(DialogWindow Window, UpdatePromptViewModel ViewModel)>> WaitingWindows()
+    {
+        var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
+        var service = Updates(registry);
+        var check = await service.CheckAsync([]);
+        return () =>
+        {
+            var viewModel = new UpdatePromptViewModel(check, service, new FakeDialogs());
+            // Au premier plan tant qu'elle propose.
+            var window = DialogWindow.Create(viewModel, owner: null);
+            Assert.True(window.Topmost);
+            viewModel.ShowWaiting(viewModel.WaitingText);
+            return (window, viewModel);
+        };
     }
 
     [Fact]
     public async Task WaitingWindowRendersInBothThemes()
     {
-        var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
-        var service = Updates(registry);
-        var check = await service.CheckAsync([]);
-        DialogWindow Waiting()
-        {
-            var viewModel = new UpdatePromptViewModel(check, service, new FakeDialogs(), new FakeWindows().Wait());
-            // Fenêtre de démarrage (sans propriétaire) : au premier plan tant qu'elle propose.
-            var window = DialogWindow.Create(viewModel, owner: null);
-            Assert.True(window.Topmost);
-            viewModel.ShowWaiting(viewModel.WaitingText);
-            return window;
-        }
-        AssertThemes(Waiting, "attente");
+        var waiting = await WaitingWindows();
+        AssertThemes(() => waiting().Window, "attente");
         RunSta(() =>
         {
-            var window = Waiting();
-            // Ni l'UAC ni l'assistant de Greenshot ne doivent être masqués.
+            var window = waiting().Window;
+            // L'UAC ne doit pas être masquée.
             Assert.False(window.Topmost);
             var content = (DependencyObject)window.Content;
             var progress = Assert.Single(FindAll<ProgressBar>(content));
             Assert.True(progress.IsIndeterminate);
             Assert.Equal(Visibility.Visible, progress.Visibility);
             Assert.All(FindAll<Button>(content), b => Assert.Equal(Visibility.Collapsed, ((FrameworkElement)b.Parent).Visibility));
-            var texts = FindAll<TextBlock>(content).ToList();
+            var texts = Texts(content);
             Assert.Equal(DialogWindow.Glyph(DialogKind.Info), texts[0].Text);
+            Assert.StartsWith("Installation de Greenshot 1.3.323…", texts[1].Text);
+        });
+    }
+
+    [Theory]
+    [InlineData(DialogKind.Info, "Greenshot 1.3.323 est installé.")]
+    [InlineData(DialogKind.Error, "La mise à jour a échoué (code 0x8A150011).")]
+    public async Task EndOfInstallRendersInBothThemes(DialogKind kind, string message)
+    {
+        var waiting = await WaitingWindows();
+        DialogWindow Ended()
+        {
+            var (window, viewModel) = waiting();
+            viewModel.ShowMessage(kind, message, "OK");
+            return window;
+        }
+        AssertThemes(Ended, $"fin_{kind}");
+        RunSta(() =>
+        {
+            var window = Ended();
+            // De nouveau au premier plan, barre remplacée par le seul bouton OK.
+            Assert.True(window.Topmost);
+            var content = (DependencyObject)window.Content;
+            Assert.Equal(Visibility.Collapsed, Assert.Single(FindAll<ProgressBar>(content)).Visibility);
+            var ok = Assert.Single(FindAll<Button>(content));
+            Assert.Equal("OK", ok.Content);
+            Assert.True(ok.IsDefault);
+            Assert.Equal(Visibility.Visible, ((FrameworkElement)ok.Parent).Visibility);
+            var texts = Texts(content);
+            Assert.Equal(DialogWindow.Glyph(kind), texts[0].Text);
+            Assert.Equal(message, texts[1].Text);
         });
     }
 
@@ -169,6 +206,13 @@ public class ViewTests
             Assert.True(shown[^1].IsCancel);
             Assert.Equal(DialogWindow.Glyph(kind), FindAll<TextBlock>((DependencyObject)window.Content).First().Text);
         });
+    }
+
+    /// <summary>Textes affichés (symbole, message), liaisons traitées par le répartiteur.</summary>
+    private static List<TextBlock> Texts(DependencyObject content)
+    {
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+        return [.. FindAll<TextBlock>(content)];
     }
 
     /// <summary>Éléments d'un type donné dans l'arbre logique.</summary>

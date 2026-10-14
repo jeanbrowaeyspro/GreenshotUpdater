@@ -61,14 +61,13 @@ public partial class App : Application
 
     /// <summary>
     /// Fenêtre de mise à jour. Dès que l'installation est lancée, sa fenêtre propriétaire
-    /// (réglages) est masquée et elle devient une fenêtre d'attente, masquée à son tour à
-    /// l'apparition de l'assistant de Greenshot : le processus attend la fin de
-    /// l'installation sans rien afficher (l'instance unique reste prise), puis la fenêtre
+    /// (réglages) est masquée et elle devient une fenêtre d'attente jusqu'à la fin de
+    /// l'installation silencieuse, puis le message de fin ; à sa fermeture, la fenêtre
     /// propriétaire est fermée, ce qui termine l'application.
     /// </summary>
     private static DialogWindow CreateUpdatePrompt(UpdateCheck check, AppServices services, Window? owner)
     {
-        var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs, services.InstallerWait);
+        var viewModel = new UpdatePromptViewModel(check, services.Updates, services.Dialogs);
         var window = DialogWindow.Create(viewModel, owner);
         if (owner is not null)
         {

@@ -9,15 +9,18 @@ public static class Winget
     public const string PackageId = "Greenshot.Greenshot";
 
     /// <summary>
-    /// Arguments de la mise à jour : l'assistant de Greenshot reste affiché
-    /// (<c>--interactive</c>), les accords sont acceptés pour ne rien demander en console.
+    /// Arguments de la mise à jour silencieuse, les accords acceptés pour ne rien
+    /// demander en console. Le manifeste winget de Greenshot.Greenshot déclare un
+    /// installeur <c>inno</c> sans switches Silent ni SilentWithProgress propres :
+    /// <c>--silent</c> donne donc les switches Inno par défaut de winget,
+    /// <see cref="InnoSetup.SilentArguments"/> (plus <c>/ALLUSERS</c> ou
+    /// <c>/CURRENTUSER</c> selon la portée de l'installation existante).
     /// </summary>
     public const string UpgradeArguments =
-        $"upgrade --id {PackageId} --exact --interactive --accept-source-agreements --accept-package-agreements";
+        $"upgrade --id {PackageId} --exact --silent --accept-source-agreements --accept-package-agreements";
 
     /// <summary>
-    /// winget est une console : elle est cachée, seuls l'UAC et l'assistant de
-    /// l'installeur apparaissent.
+    /// winget est une console : elle est cachée, seule l'UAC apparaît.
     /// </summary>
     public static ProcessStartInfo UpgradeCommand(string wingetPath) => new(wingetPath, UpgradeArguments)
     {

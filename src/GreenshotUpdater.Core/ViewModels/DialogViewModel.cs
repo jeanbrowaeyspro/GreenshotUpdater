@@ -30,24 +30,21 @@ public sealed record DialogButton(string Text, RelayCommand Command, bool IsDefa
 /// <summary>
 /// Boîte de dialogue de l'application : titre, symbole, message et boutons. Seul type de
 /// fenêtre de message : les questions, informations et erreurs comme la proposition de
-/// mise à jour (classe dérivée).
+/// mise à jour (classe dérivée), qui devient fenêtre d'attente puis message de fin.
 /// </summary>
 public class DialogViewModel : ObservableObject
 {
     private DialogKind _kind;
     private string _message;
     private bool _isWaiting;
+    private IReadOnlyList<DialogButton> _buttons = [];
 
     /// <summary>Boîte simple : chaque bouton note son rang dans <see cref="Choice"/> et ferme.</summary>
     /// <param name="buttons">Textes des boutons : le premier est le bouton principal, le dernier répond à Échap.</param>
     public DialogViewModel(DialogKind kind, string message, params string[] buttons)
         : this(kind, message)
     {
-        Buttons = [.. buttons.Select((text, index) => new DialogButton(text, new RelayCommand(() =>
-        {
-            Choice = index;
-            Close();
-        }), index == 0, index == buttons.Length - 1))];
+        _buttons = ChoiceButtons(buttons);
     }
 
     /// <summary>Pour une classe dérivée, qui fournit ses propres <see cref="Buttons"/>.</summary>
@@ -56,9 +53,6 @@ public class DialogViewModel : ObservableObject
         _kind = kind;
         _message = message;
     }
-
-    /// <summary>Demande de masquer la fenêtre sans la fermer.</summary>
-    public event Action? RequestHide;
 
     public event Action? RequestClose;
 
@@ -95,7 +89,23 @@ public class DialogViewModel : ObservableObject
         IsWaiting = true;
     }
 
-    public IReadOnlyList<DialogButton> Buttons { get; protected init; } = [];
+    /// <summary>
+    /// Transforme la boîte (fenêtre d'attente…) en message simple : boutons de
+    /// <paramref name="buttons"/>, comme une boîte créée par le constructeur public.
+    /// </summary>
+    public void ShowMessage(DialogKind kind, string message, params string[] buttons)
+    {
+        Buttons = ChoiceButtons(buttons);
+        Kind = kind;
+        Message = message;
+        IsWaiting = false;
+    }
+
+    public IReadOnlyList<DialogButton> Buttons
+    {
+        get => _buttons;
+        protected set => Set(ref _buttons, value);
+    }
 
     /// <summary>Rang du bouton choisi ; null si la fenêtre a été fermée autrement.</summary>
     public int? Choice { get; private set; }
@@ -103,7 +113,13 @@ public class DialogViewModel : ObservableObject
     /// <summary>Faux tant que la fenêtre ne doit pas se fermer (opération en cours).</summary>
     public virtual bool CanClose => true;
 
-    protected void Hide() => RequestHide?.Invoke();
-
     protected void Close() => RequestClose?.Invoke();
+
+    /// <summary>Boutons qui notent leur rang dans <see cref="Choice"/> et ferment la boîte.</summary>
+    private DialogButton[] ChoiceButtons(string[] texts) =>
+        [.. texts.Select((text, index) => new DialogButton(text, new RelayCommand(() =>
+        {
+            Choice = index;
+            Close();
+        }), index == 0, index == texts.Length - 1))];
 }

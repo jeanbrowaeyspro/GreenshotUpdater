@@ -27,9 +27,6 @@ public sealed class AppServices
     public Setup Setup { get; }
 
     public UpdateService Updates { get; }
-
-    /// <summary>Attente de l'assistant d'installation de Greenshot (fenêtres réelles du bureau).</summary>
-    public InstallerWindowWait InstallerWait { get; } = new(new DesktopWindows());
 }
 
 /// <summary>

@@ -34,7 +34,7 @@ public interface IGreenshotProcess
     /// </summary>
     string? Close();
 
-    /// <summary>Vrai si Greenshot tourne (relancé par exemple par son propre assistant).</summary>
+    /// <summary>Vrai si Greenshot tourne (relancé par exemple par son installeur).</summary>
     bool IsRunning { get; }
 
     void Start(string exePath);

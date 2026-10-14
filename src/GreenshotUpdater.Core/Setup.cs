@@ -21,6 +21,13 @@ public sealed class Setup(AppPaths paths, IRegistryStore registry, IShortcutWrit
     public string RunCommand => $"\"{paths.InstalledLauncher}\" {Switches.Startup}";
 
     /// <summary>
+    /// Première vérification après l'installation : lanceur installé avec
+    /// <c>/demarrage</c>, comme à l'ouverture de session.
+    /// </summary>
+    public ProcessStartInfo StartupCheck =>
+        new(paths.InstalledLauncher, Switches.Startup) { UseShellExecute = false, WorkingDirectory = paths.InstallDir };
+
+    /// <summary>
     /// Copie le lanceur (seul fichier du dossier d'installation, l'application étant
     /// extraite par lui dans le dossier de données locales), puis applique les options.
     /// Renvoie les avertissements à afficher.

@@ -125,40 +125,62 @@ public class SetupTests
     // ------------------------------------------------------------- modèle de vue
 
     [Fact]
-    public void SettingsWindowInstallsThenApplies()
+    public async Task InstallWindowInstallsThenStartsTheCheck()
     {
         var b = NewBench();
+        b.Registry.WithGreenshot("1.3.315", null);
         var dialogs = new FakeDialogs();
         var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, dialogs);
+        var closed = false;
+        vm.RequestClose += () => closed = true;
         Assert.True(vm.InstallMode);
+        Assert.False(vm.ShowsSettings);
         Assert.Equal("Installer", vm.ApplyText);
         Assert.True(vm.ApplyCommand.CanExecute(null));
+        Assert.False(vm.CheckCommand.CanExecute(null));
         Assert.False(vm.UninstallCommand.CanExecute(null));
         Assert.StartsWith("GreenshotUpdater 1.0.0", vm.Title);
 
+        // Pas de lecture des versions ni de proposition de mise à jour pendant l'installation.
+        await vm.OpenedAsync();
+        Assert.Equal("…", vm.InstalledVersionText);
+
         vm.DesktopShortcut = true;
         vm.ApplyCommand.Execute(null);
-        Assert.Equal("Installation terminée.", vm.Status);
-        Assert.Equal("Appliquer", vm.ApplyText);
         Assert.True(File.Exists(b.Paths.DesktopShortcut));
-        Assert.True(vm.UninstallCommand.CanExecute(null));
-
-        vm.DesktopShortcut = false;
-        vm.ApplyCommand.Execute(null);
-        Assert.Equal("Options appliquées.", vm.Status);
-        Assert.False(File.Exists(b.Paths.DesktopShortcut));
-        Assert.Empty(dialogs.Shown);
+        Assert.Equal(["Installation terminée."], dialogs.Shown);
+        Assert.True(closed);
+        // Lancée par l'application après la fermeture, une fois l'instance unique libérée.
+        Assert.NotNull(vm.PendingCommand);
+        Assert.Equal(b.Paths.InstalledLauncher, vm.PendingCommand.FileName);
+        Assert.Equal("/demarrage", vm.PendingCommand.Arguments);
+        Assert.False(vm.PendingCommand.UseShellExecute);
     }
 
     [Fact]
-    public void RunningFromInstallDirShowsApply()
+    public async Task RunningFromInstallDirShowsSettingsAndApplies()
     {
         var b = NewBench();
+        b.Registry.WithGreenshot("1.3.315", null);
         b.Setup.Install(b.Launcher, new AppSettings());
+        var dialogs = new FakeDialogs();
         var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), AppSettings.Load(b.Paths.SettingsFile),
-                                       b.Paths.InstalledLauncher, new FakeDialogs());
+                                       b.Paths.InstalledLauncher, dialogs);
         Assert.False(vm.InstallMode);
+        Assert.True(vm.ShowsSettings);
         Assert.Equal("Appliquer", vm.ApplyText);
+        Assert.True(vm.CheckCommand.CanExecute(null));
+        Assert.True(vm.UninstallCommand.CanExecute(null));
+
+        await vm.OpenedAsync();
+        Assert.Equal("1.3.315", vm.InstalledVersionText);
+
+        vm.DesktopShortcut = true;
+        vm.ApplyCommand.Execute(null);
+        Assert.Equal("Options appliquées.", vm.Status);
+        Assert.True(File.Exists(b.Paths.DesktopShortcut));
+        Assert.Null(vm.PendingCommand);
+        Assert.Empty(dialogs.Shown);
     }
 
     [Fact]
@@ -180,7 +202,7 @@ public class SetupTests
         var refuse = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Paths.InstalledLauncher,
                                            new FakeDialogs(answer: false));
         refuse.UninstallCommand.Execute(null);
-        Assert.Null(refuse.PendingCleanup);
+        Assert.Null(refuse.PendingCommand);
         Assert.NotNull(RunEntry(b));
 
         var dialogs = new FakeDialogs();
@@ -188,7 +210,7 @@ public class SetupTests
                                        dialogs);
         vm.RequestClose += () => closed = true;
         vm.UninstallCommand.Execute(null);
-        Assert.NotNull(vm.PendingCleanup);
+        Assert.Equal("cmd.exe", vm.PendingCommand?.FileName);
         Assert.Null(RunEntry(b));
         Assert.True(closed);
         Assert.Contains("GreenshotUpdater est désinstallé.", dialogs.Shown);
@@ -215,7 +237,9 @@ public class SetupTests
     {
         var b = NewBench();
         b.Registry.WithGreenshot("1.3.315", @"C:\Program Files\Greenshot\");
-        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Launcher, new FakeDialogs());
+        b.Setup.Install(b.Launcher, new AppSettings());
+        var vm = new SettingsViewModel(b.Setup, Updates(b.Registry), new AppSettings(), b.Paths.InstalledLauncher,
+                                       new FakeDialogs());
         UpdateCheck? offered = null;
         vm.UpdateOffered += check => offered = check;
 

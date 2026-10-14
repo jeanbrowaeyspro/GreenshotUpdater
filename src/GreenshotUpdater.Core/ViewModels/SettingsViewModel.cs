@@ -3,8 +3,9 @@ using System.Diagnostics;
 namespace GreenshotUpdater.ViewModels;
 
 /// <summary>
-/// Fenêtre de réglages (lancement manuel) : installation ou application des options,
-/// versions de Greenshot, vérification, désinstallation.
+/// Fenêtre de réglages (lancement manuel). Hors du dossier d'installation : options
+/// d'installation et bouton "Installer" seulement. Une fois installé : application des
+/// options, versions de Greenshot, vérification, désinstallation.
 /// </summary>
 public sealed class SettingsViewModel : ObservableObject
 {
@@ -13,7 +14,6 @@ public sealed class SettingsViewModel : ObservableObject
     private readonly AppSettings _settings;
     private readonly string? _launcherPath;
     private readonly IDialogs _dialogs;
-    private bool _installMode;
     private bool _isBusy;
     private string _installedVersionText = "…";
     private string _latestVersionText = "…";
@@ -28,10 +28,10 @@ public sealed class SettingsViewModel : ObservableObject
         _settings = settings;
         _launcherPath = launcherPath;
         _dialogs = dialogs;
-        _installMode = !setup.Paths.IsInInstallDir(launcherPath);
+        InstallMode = !setup.Paths.IsInInstallDir(launcherPath);
         ApplyCommand = new RelayCommand(Apply, () => !IsBusy && (!InstallMode || CanInstall));
-        CheckCommand = new RelayCommand(() => _ = CheckAsync(offer: true), () => !IsBusy);
-        UninstallCommand = new RelayCommand(Uninstall, () => !IsBusy && _setup.IsInstalled);
+        CheckCommand = new RelayCommand(() => _ = CheckAsync(offer: true), () => !IsBusy && !InstallMode);
+        UninstallCommand = new RelayCommand(Uninstall, () => !IsBusy && !InstallMode && _setup.IsInstalled);
         if (InstallMode && !CanInstall)
             Status = "Lancez GreenshotUpdater.exe pour pouvoir l'installer.";
     }
@@ -71,16 +71,11 @@ public sealed class SettingsViewModel : ObservableObject
 
     // ------------------------------------------------------------- état
 
-    /// <summary>Vrai tant que le lanceur n'est pas celui du dossier d'installation et n'y a pas été installé.</summary>
-    public bool InstallMode
-    {
-        get => _installMode;
-        private set
-        {
-            if (Set(ref _installMode, value))
-                OnPropertyChanged(nameof(ApplyText));
-        }
-    }
+    /// <summary>Vrai si le lanceur n'est pas celui du dossier d'installation : parcours d'installation.</summary>
+    public bool InstallMode { get; }
+
+    /// <summary>Versions de Greenshot, vérification et désinstallation : seulement une fois installé.</summary>
+    public bool ShowsSettings => !InstallMode;
 
     public string ApplyText => InstallMode ? "Installer" : "Appliquer";
 
@@ -117,8 +112,11 @@ public sealed class SettingsViewModel : ObservableObject
         private set => Set(ref _status, value);
     }
 
-    /// <summary>Suppression différée du dossier d'installation et de l'application extraite, à lancer à la fermeture.</summary>
-    public ProcessStartInfo? PendingCleanup { get; private set; }
+    /// <summary>
+    /// Commande à lancer à la fermeture : première vérification par le lanceur installé
+    /// après l'installation, suppression différée après la désinstallation.
+    /// </summary>
+    public ProcessStartInfo? PendingCommand { get; private set; }
 
     public RelayCommand ApplyCommand { get; }
 
@@ -132,12 +130,15 @@ public sealed class SettingsViewModel : ObservableObject
     {
         Run(() =>
         {
-            var warnings = InstallMode
-                ? _setup.Install(_launcherPath!, _settings)
-                : _setup.Apply(_settings);
-            Status = string.Join("\n", [InstallMode ? "Installation terminée." : "Options appliquées.", .. warnings]);
-            InstallMode = false;
-            UninstallCommand.Refresh();
+            if (!InstallMode)
+            {
+                Status = string.Join("\n", ["Options appliquées.", .. _setup.Apply(_settings)]);
+                return;
+            }
+            var warnings = _setup.Install(_launcherPath!, _settings);
+            _dialogs.Info(string.Join("\n", ["Installation terminée.", .. warnings]));
+            PendingCommand = _setup.StartupCheck;
+            RequestClose?.Invoke();
         });
     }
 
@@ -149,7 +150,7 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         Run(() =>
         {
-            PendingCleanup = _setup.Uninstall();
+            PendingCommand = _setup.Uninstall();
             _dialogs.Info("GreenshotUpdater est désinstallé.");
             RequestClose?.Invoke();
         });
@@ -174,6 +175,9 @@ public sealed class SettingsViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    /// <summary>À l'ouverture de la fenêtre : lecture des versions, seulement une fois installé.</summary>
+    public Task OpenedAsync() => InstallMode ? Task.CompletedTask : CheckAsync(offer: false);
 
     /// <summary>
     /// Lit les versions (une seule tentative) ; avec <paramref name="offer"/>, propose la

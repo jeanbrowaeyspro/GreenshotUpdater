@@ -67,19 +67,30 @@ public partial class App : Application
                 .ShowDialog();
         window.Closed += (_, _) =>
         {
-            if (viewModel.PendingCleanup is { } cleanup)
-                services.Runner.Start(cleanup);
+            if (viewModel.PendingCommand is { } command)
+            {
+                // Instance unique libérée d'abord : la vérification lancée après
+                // l'installation ne doit pas se croire en double.
+                ReleaseSingleInstance();
+                services.Runner.Start(command);
+            }
             Shutdown();
         };
         MainWindow = window;
         window.Show();
-        _ = viewModel.CheckAsync(offer: false);
+        _ = viewModel.OpenedAsync();
+    }
+
+    private void ReleaseSingleInstance()
+    {
+        _singleInstance?.ReleaseMutex();
+        _singleInstance?.Dispose();
+        _singleInstance = null;
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _singleInstance?.ReleaseMutex();
-        _singleInstance?.Dispose();
+        ReleaseSingleInstance();
         base.OnExit(e);
     }
 

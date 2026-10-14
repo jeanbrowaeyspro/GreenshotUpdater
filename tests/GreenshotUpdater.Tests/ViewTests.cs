@@ -70,12 +70,16 @@ public class ViewTests
         return (mean, luminance.Count(l => Math.Abs(l - mean) > 80));
     }
 
-    private static void AssertThemes(Func<Window> create, string name)
+    /// <summary>Vérifie le rendu dans les deux thèmes ; renvoie la hauteur de l'image en thème clair.</summary>
+    private static int AssertThemes(Func<Window> create, string name)
     {
+        var height = 0;
         RunSta(() =>
         {
             var window = create();
-            var light = Measure(Render(window, dark: false, name));
+            var pixels = Render(window, dark: false, name);
+            height = pixels.Length / 4 / (int)Math.Ceiling(window.Width);
+            var light = Measure(pixels);
             Assert.Equal(AppInfo.Title, window.Title);
             var dark = Measure(Render(create(), dark: true, name));
             Assert.True(light.Mean > 180, $"fond clair : {light.Mean:F0}");
@@ -84,6 +88,7 @@ public class ViewTests
             Assert.True(light.Contrasted > 500, $"clair : {light.Contrasted} pixels contrastés");
             Assert.True(dark.Contrasted > 500, $"sombre : {dark.Contrasted} pixels contrastés");
         });
+        return height;
     }
 
     private static UpdateService Updates(FakeRegistry registry) =>
@@ -91,15 +96,21 @@ public class ViewTests
             () => @"C:\winget.exe", Path.GetTempPath());
 
     [Fact]
-    public async Task SettingsWindowRendersInBothThemes()
+    public async Task SettingsAndInstallWindowsRenderInBothThemes()
     {
         var paths = NewPaths();
         var registry = new FakeRegistry().WithGreenshot("1.3.315", null);
         var setup = new Setup(paths, registry, new FakeShortcuts(), new GreenshotConfig(paths.GreenshotIni, new FakeGreenshot(null)));
-        var vm = new SettingsViewModel(setup, Updates(registry), new AppSettings(), null, new FakeDialogs());
-        await vm.CheckAsync(offer: false);
+        // Fenêtre ouverte depuis le lanceur installé : réglages complets.
+        var settings = new SettingsViewModel(setup, Updates(registry), new AppSettings(), paths.InstalledLauncher, new FakeDialogs());
+        await settings.OpenedAsync();
         Assert.Equal("GreenshotUpdater 1.0.0", AppInfo.Title);
-        AssertThemes(() => new SettingsWindow(vm), "reglages");
+        var settingsHeight = AssertThemes(() => new SettingsWindow(settings), "reglages");
+
+        // Fenêtre ouverte depuis un autre dossier : options et bouton "Installer" seulement.
+        var install = new SettingsViewModel(setup, Updates(registry), new AppSettings(), null, new FakeDialogs());
+        var installHeight = AssertThemes(() => new SettingsWindow(install), "installation");
+        Assert.True(installHeight < settingsHeight - 80, $"installation {installHeight} px, réglages {settingsHeight} px");
     }
 
     [Fact]

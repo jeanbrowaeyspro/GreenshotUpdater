@@ -114,6 +114,18 @@ n'est libérée qu'à la fin. Le déroulement est noté dans
 `%LOCALAPPDATA%\GreenshotUpdater\journal.log` (au-delà de 256 Ko, l'ancien journal
 devient `journal.old.log`).
 
+## Mise à jour automatique de GreenshotUpdater
+
+À chaque vérification de Greenshot (ouverture de session ou ouverture de la fenêtre de
+réglages une fois installé), GreenshotUpdater regarde aussi sa propre dernière version
+stable sur GitHub (`https://api.github.com/repos/jeanbrowaeyspro/GreenshotUpdater/releases/latest`,
+préversions ignorées). Si elle est plus récente, il télécharge `GreenshotUpdater.exe` et
+remplace en silence le lanceur installé, sans droits administrateur : l'ancien est
+renommé `GreenshotUpdater.exe.old` puis supprimé au lancement suivant, et la nouvelle
+version prend effet au prochain lancement (son application est alors extraite à
+nouveau). Rien n'est affiché, tout est noté dans le journal. Si GitHub ne répond pas, la
+mise à jour de l'outil est simplement remise à plus tard, sans gêner celle de Greenshot.
+
 ## Désinstallation
 
 Bouton "Désinstaller" de la fenêtre de réglages (menu Démarrer > GreenshotUpdater),
@@ -180,12 +192,13 @@ src\Shared\Switches.cs            arguments /demarrage et /lanceur (lanceur et a
 src\Shared\AppLocations.cs        nom et emplacement de l'application extraite (lanceur et application)
 src\GreenshotUpdater.Core\        logique sans interface et modèles de vue
     AppPaths, AppSettings, AppArguments, Log
-    VersionText, GitHubRelease     versions, API GitHub
+    VersionText, GitHubRelease     versions, API GitHub (Greenshot et GreenshotUpdater)
     InstalledGreenshot, RegistryStore   lecture du registre (abstraction)
     GreenshotIni, GreenshotConfig  modification de Greenshot.ini
     Processes, Winget              Greenshot, winget, programmes externes
     Shortcuts, Setup               raccourcis, installation, désinstallation
     UpdateService                  vérification et mise à jour
+    SelfUpdate                     mise à jour de GreenshotUpdater lui-même
     InnoSetup                      arguments silencieux de l'installeur de Greenshot (sans winget)
     ViewModels\                    fenêtre de réglages, boîtes de dialogue, proposition de mise à jour
 src\GreenshotUpdater\             application WPF (GreenshotUpdater.App.exe) : SettingsWindow, DialogWindow

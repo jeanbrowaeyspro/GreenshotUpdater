@@ -2,18 +2,35 @@ using System.Text.Json;
 
 namespace GreenshotUpdater;
 
-/// <summary>Dernière version stable de Greenshot publiée sur GitHub.</summary>
-/// <param name="InstallerUrl">Adresse de l'installeur <c>Greenshot-INSTALLER-*-RELEASE.exe</c>, s'il est publié.</param>
-public sealed record ReleaseInfo(Version Version, string Tag, string? InstallerName, string? InstallerUrl)
+/// <summary>
+/// Dépôt GitHub suivi : adresse de l'API <c>releases/latest</c> et fichier attendu
+/// parmi les fichiers publiés de la release.
+/// </summary>
+public sealed record ReleaseFeed(string ApiUrl, Func<string, bool> IsAsset)
 {
-    public const string ApiUrl = "https://api.github.com/repos/greenshot/greenshot/releases/latest";
+    /// <summary>Greenshot : installeur <c>Greenshot-INSTALLER-*-RELEASE.exe</c>.</summary>
+    public static readonly ReleaseFeed Greenshot = new(
+        "https://api.github.com/repos/greenshot/greenshot/releases/latest",
+        name => name.StartsWith("Greenshot-INSTALLER-", StringComparison.OrdinalIgnoreCase)
+                && name.EndsWith("-RELEASE.exe", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>GreenshotUpdater lui-même : lanceur <c>GreenshotUpdater.exe</c>.</summary>
+    public static readonly ReleaseFeed Self = new(
+        "https://api.github.com/repos/jeanbrowaeyspro/GreenshotUpdater/releases/latest",
+        name => name.Equals(AppPaths.LauncherFileName, StringComparison.OrdinalIgnoreCase));
+}
+
+/// <summary>Dernière version stable publiée sur GitHub.</summary>
+/// <param name="AssetName">Nom du fichier attendu par le <see cref="ReleaseFeed"/>, s'il est publié.</param>
+/// <param name="AssetUrl">Adresse de téléchargement de ce fichier.</param>
+public sealed record ReleaseInfo(Version Version, string Tag, string? AssetName, string? AssetUrl)
+{
     /// <summary>
     /// Lit la réponse de l'API GitHub <c>releases/latest</c>. Renvoie null pour une
     /// préversion (drapeau <c>prerelease</c> ou nom contenant <c>UNSTABLE</c>), un
     /// brouillon ou un numéro illisible.
     /// </summary>
-    public static ReleaseInfo? Parse(string json)
+    public static ReleaseInfo? Parse(string json, ReleaseFeed feed)
     {
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -27,22 +44,21 @@ public sealed record ReleaseInfo(Version Version, string Tag, string? InstallerN
         if (version is null)
             return null;
 
-        string? installerName = null, installerUrl = null;
+        string? assetName = null, assetUrl = null;
         if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
         {
             foreach (var asset in assets.EnumerateArray())
             {
-                var assetName = String(asset, "name") ?? "";
-                if (assetName.StartsWith("Greenshot-INSTALLER-", StringComparison.OrdinalIgnoreCase)
-                    && assetName.EndsWith("-RELEASE.exe", StringComparison.OrdinalIgnoreCase))
+                var candidate = String(asset, "name") ?? "";
+                if (feed.IsAsset(candidate))
                 {
-                    installerName = assetName;
-                    installerUrl = String(asset, "browser_download_url");
+                    assetName = candidate;
+                    assetUrl = String(asset, "browser_download_url");
                     break;
                 }
             }
         }
-        return new ReleaseInfo(version, tag, installerName, installerUrl);
+        return new ReleaseInfo(version, tag, assetName, assetUrl);
     }
 
     private static string? String(JsonElement element, string name) =>
@@ -61,8 +77,8 @@ public interface IReleaseSource
     Task DownloadAsync(string url, string destination, CancellationToken cancel = default);
 }
 
-/// <summary>Accès à l'API GitHub, avec l'en-tête User-Agent qu'elle exige.</summary>
-public sealed class GitHubReleaseSource : IReleaseSource
+/// <summary>Accès à l'API GitHub d'un dépôt, avec l'en-tête User-Agent qu'elle exige.</summary>
+public sealed class GitHubReleaseSource(ReleaseFeed feed) : IReleaseSource
 {
     private static readonly HttpClient Http = CreateClient();
 
@@ -76,11 +92,11 @@ public sealed class GitHubReleaseSource : IReleaseSource
 
     public async Task<ReleaseInfo?> GetLatestAsync(CancellationToken cancel = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, ReleaseInfo.ApiUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, feed.ApiUrl);
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
         using var response = await Http.SendAsync(request, cancel);
         response.EnsureSuccessStatusCode();
-        return ReleaseInfo.Parse(await response.Content.ReadAsStringAsync(cancel));
+        return ReleaseInfo.Parse(await response.Content.ReadAsStringAsync(cancel), feed);
     }
 
     public async Task DownloadAsync(string url, string destination, CancellationToken cancel = default)

@@ -14,11 +14,15 @@ public sealed class AppServices
         var registry = new WindowsRegistry();
         var greenshot = new GreenshotProcess(Runner);
         Setup = new Setup(paths, registry, new ShellLinkWriter(), new GreenshotConfig(paths.GreenshotIni, greenshot));
-        Updates = new UpdateService(registry, new GitHubReleaseSource(), greenshot, Runner,
+        Updates = new UpdateService(registry, new GitHubReleaseSource(ReleaseFeed.Greenshot), greenshot, Runner,
                                     () => Winget.Find(Winget.CandidateDirs(), File.Exists), paths.TempDir);
+        SelfUpdate = new SelfUpdate(new GitHubReleaseSource(ReleaseFeed.Self),
+                                    typeof(SelfUpdate).Assembly.GetName().Version!, paths.InstalledLauncher);
     }
 
     public AppPaths Paths { get; }
+
+    public SelfUpdate SelfUpdate { get; }
 
     public IDialogs Dialogs { get; }
 

@@ -27,11 +27,11 @@ public class CoreTests
     [Fact]
     public void ReadsGitHubRelease()
     {
-        var release = ReleaseInfo.Parse(ReleaseJson)!;
+        var release = ReleaseInfo.Parse(ReleaseJson, ReleaseFeed.Greenshot)!;
         Assert.Equal(new Version(1, 3, 323, 0), release.Version);
         Assert.Equal("v1.3.323", release.Tag);
-        Assert.Equal("Greenshot-INSTALLER-1.3.323-RELEASE.exe", release.InstallerName);
-        Assert.EndsWith("/v1.3.323/Greenshot-INSTALLER-1.3.323-RELEASE.exe", release.InstallerUrl);
+        Assert.Equal("Greenshot-INSTALLER-1.3.323-RELEASE.exe", release.AssetName);
+        Assert.EndsWith("/v1.3.323/Greenshot-INSTALLER-1.3.323-RELEASE.exe", release.AssetUrl);
     }
 
     [Theory]
@@ -39,14 +39,14 @@ public class CoreTests
     [InlineData("""{ "tag_name": "v1.4.107-UNSTABLE", "name": "Greenshot", "prerelease": false }""")]
     [InlineData("""{ "tag_name": "v1.4.107", "name": "Greenshot", "prerelease": true }""")]
     [InlineData("""{ "tag_name": "nightly", "name": "Greenshot" }""")]
-    public void IgnoresUnstableReleases(string json) => Assert.Null(ReleaseInfo.Parse(json));
+    public void IgnoresUnstableReleases(string json) => Assert.Null(ReleaseInfo.Parse(json, ReleaseFeed.Greenshot));
 
     [Fact]
     public void ReleaseWithoutInstaller()
     {
-        var release = ReleaseInfo.Parse("""{ "tag_name": "v1.3.400", "assets": [] }""")!;
+        var release = ReleaseInfo.Parse("""{ "tag_name": "v1.3.400", "assets": [] }""", ReleaseFeed.Greenshot)!;
         Assert.Equal(new Version(1, 3, 400, 0), release.Version);
-        Assert.Null(release.InstallerUrl);
+        Assert.Null(release.AssetUrl);
     }
 
     // ------------------------------------------------------------- Greenshot.ini

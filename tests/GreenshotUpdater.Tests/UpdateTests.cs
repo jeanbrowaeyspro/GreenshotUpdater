@@ -248,7 +248,7 @@ public class UpdateTests
         vm = await Prompt(service);
         await vm.InstallAsync();
         var download = Assert.Single(releases.Downloads);
-        Assert.Equal(FakeReleases.Latest()!.InstallerUrl, download.Url);
+        Assert.Equal(FakeReleases.Latest()!.AssetUrl, download.Url);
         var run = Assert.Single(runner.Runs);
         Assert.Equal(download.Destination, run.FileName);
         Assert.Equal("/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART", run.Arguments);

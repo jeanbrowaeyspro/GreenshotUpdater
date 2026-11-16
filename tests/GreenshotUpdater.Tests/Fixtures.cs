@@ -208,6 +208,8 @@ public sealed class FakeReleases(params Func<ReleaseInfo?>[] answers) : IRelease
 {
     public int Calls { get; private set; }
     public List<(string Url, string Destination)> Downloads { get; } = [];
+    /// <summary>Contenu écrit par le "téléchargement".</summary>
+    public string Content { get; init; } = "installeur";
 
     public Task<ReleaseInfo?> GetLatestAsync(CancellationToken cancel = default) =>
         Task.FromResult(answers[Math.Min(Calls++, answers.Length - 1)]());
@@ -216,11 +218,11 @@ public sealed class FakeReleases(params Func<ReleaseInfo?>[] answers) : IRelease
     {
         Downloads.Add((url, destination));
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        File.WriteAllText(destination, "installeur");
+        File.WriteAllText(destination, Content);
         return Task.CompletedTask;
     }
 
-    public static ReleaseInfo? Latest() => ReleaseInfo.Parse(Fixtures.ReleaseJson);
+    public static ReleaseInfo? Latest() => ReleaseInfo.Parse(Fixtures.ReleaseJson, ReleaseFeed.Greenshot);
 
     public static ReleaseInfo? Offline() => throw new HttpRequestException("réseau absent");
 }

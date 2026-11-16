@@ -14,6 +14,8 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private IDialogs? _dialogs;
+    /// <summary>Mise à jour de GreenshotUpdater lui-même, attendue avant la fermeture.</summary>
+    private Task _selfUpdate = Task.CompletedTask;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -37,6 +39,7 @@ public partial class App : Application
         ThemeManager.Apply(this);
 
         var services = new AppServices(paths, _dialogs);
+        services.SelfUpdate.CleanUp();
         if (args.Startup)
             await StartupCheckAsync(services);
         else
@@ -48,13 +51,16 @@ public partial class App : Application
     {
         Log.Info("Vérification au démarrage");
         var check = await services.Updates.CheckAsync(UpdateService.StartupRetryDelays);
+        // GitHub joignable : l'outil vérifie aussi sa propre version, en parallèle.
+        if (check.Error is null)
+            _selfUpdate = services.SelfUpdate.RunAsync();
         if (!check.UpdateAvailable)
         {
-            Shutdown();
+            ShutdownAfterSelfUpdate();
             return;
         }
         var window = CreateUpdatePrompt(check, services, owner: null);
-        window.Closed += (_, _) => Shutdown();
+        window.Closed += (_, _) => ShutdownAfterSelfUpdate();
         MainWindow = window;
         window.Show();
     }
@@ -93,8 +99,9 @@ public partial class App : Application
                                               args.LauncherPath, services.Dialogs);
         var window = new SettingsWindow(viewModel);
         viewModel.UpdateOffered += check => CreateUpdatePrompt(check, services, window).ShowDialog();
-        window.Closed += (_, _) =>
+        window.Closed += async (_, _) =>
         {
+            await _selfUpdate;
             if (viewModel.PendingCommand is { } command)
             {
                 // Instance unique libérée d'abord : la vérification lancée après
@@ -107,6 +114,18 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
         _ = viewModel.OpenedAsync();
+        if (!viewModel.InstallMode)
+            _selfUpdate = services.SelfUpdate.RunAsync();
+    }
+
+    /// <summary>
+    /// Ferme l'application une fois la mise à jour de l'outil terminée, s'il y en a une en
+    /// cours : le lanceur n'est jamais laissé à moitié remplacé.
+    /// </summary>
+    private async void ShutdownAfterSelfUpdate()
+    {
+        await _selfUpdate;
+        Shutdown();
     }
 
     private void ReleaseSingleInstance()

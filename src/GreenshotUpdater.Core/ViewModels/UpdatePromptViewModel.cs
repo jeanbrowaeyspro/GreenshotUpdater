@@ -55,7 +55,7 @@ public sealed class UpdatePromptViewModel : DialogViewModel
     {
         if (!_updates.WingetAvailable && !_dialogs.Confirm(
                 "winget est introuvable sur ce poste.\n\n"
-                + $"Télécharger l'installeur {_check.Latest!.InstallerName ?? "de Greenshot"} depuis GitHub et l'exécuter ?",
+                + $"Télécharger l'installeur {_check.Latest!.AssetName ?? "de Greenshot"} depuis GitHub et l'exécuter ?",
                 "Télécharger", "Annuler"))
             return;
 

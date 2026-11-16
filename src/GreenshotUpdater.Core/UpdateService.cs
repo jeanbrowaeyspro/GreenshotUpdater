@@ -75,11 +75,11 @@ public sealed class UpdateService(
             ? () => runner.RunAsync(Winget.UpgradeCommand(winget), cancel)
             : async () =>
             {
-                if (release.InstallerUrl is null || release.InstallerName is null)
+                if (release.AssetUrl is null || release.AssetName is null)
                     throw new InvalidOperationException("La release GitHub ne contient pas d'installeur.");
-                var installer = Path.Combine(tempDir, release.InstallerName);
-                Log.Info($"Téléchargement de {release.InstallerUrl}");
-                await releases.DownloadAsync(release.InstallerUrl, installer, cancel);
+                var installer = Path.Combine(tempDir, release.AssetName);
+                Log.Info($"Téléchargement de {release.AssetUrl}");
+                await releases.DownloadAsync(release.AssetUrl, installer, cancel);
                 return await runner.RunAsync(InnoSetup.SilentCommand(installer), cancel);
             });
 

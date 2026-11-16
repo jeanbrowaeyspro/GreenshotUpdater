@@ -190,3 +190,7 @@ src\GreenshotUpdater\             application WPF (GreenshotUpdater.App.exe) : S
 src\GreenshotUpdater.Launcher\    lanceur net48 (GreenshotUpdater.exe)
 tests\GreenshotUpdater.Tests\     tests xUnit
 ```
+
+## Licence
+
+Distribué sous licence MIT (voir le fichier `LICENSE`).

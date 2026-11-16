@@ -139,7 +139,7 @@ public class SetupTests
         Assert.True(vm.ApplyCommand.CanExecute(null));
         Assert.False(vm.CheckCommand.CanExecute(null));
         Assert.False(vm.UninstallCommand.CanExecute(null));
-        Assert.StartsWith("GreenshotUpdater 1.0.0", vm.Title);
+        Assert.StartsWith("GreenshotUpdater 1.1.0", vm.Title);
 
         // Pas de lecture des versions ni de proposition de mise à jour pendant l'installation.
         await vm.OpenedAsync();

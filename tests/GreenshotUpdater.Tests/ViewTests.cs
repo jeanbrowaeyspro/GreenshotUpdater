@@ -104,7 +104,7 @@ public class ViewTests
         // Fenêtre ouverte depuis le lanceur installé : réglages complets.
         var settings = new SettingsViewModel(setup, Updates(registry), new AppSettings(), paths.InstalledLauncher, new FakeDialogs());
         await settings.OpenedAsync();
-        Assert.Equal("GreenshotUpdater 1.0.0", AppInfo.Title);
+        Assert.Equal("GreenshotUpdater 1.1.0", AppInfo.Title);
         var settingsHeight = AssertThemes(() => new SettingsWindow(settings), "reglages");
 
         // Fenêtre ouverte depuis un autre dossier : options et bouton "Installer" seulement.

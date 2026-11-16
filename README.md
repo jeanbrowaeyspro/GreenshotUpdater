@@ -7,7 +7,7 @@ silence par winget. Il remplace la vérification intégrée de Greenshot, qui pe
 
 Outil indépendant, non affilié au projet Greenshot ni approuvé par lui.
 
-Livrable : un seul fichier, `GreenshotUpdater.exe` (environ 420 Ko), sans droits
+Livrable : un seul fichier, `GreenshotUpdater.exe` (environ 440 Ko), sans droits
 administrateur pour l'installer.
 
 ## Installation
